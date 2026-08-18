@@ -126,3 +126,35 @@ Before proposing a change to any decision marked **Accepted**, review the reason
 **Reason**: Adaptive testing requires rich evaluation history to learn from. Building it before that history exists produces a system with nothing to adapt to. Premature implementation creates complexity without benefit.
 
 **Status**: Accepted
+
+---
+
+## ADR-011: openai_provider Package Name (Not openai)
+
+**Decision**: The OpenAI provider package is named `providers/openai_provider/` instead of `providers/openai/`.
+
+**Reason**: `openai` is the name of the official OpenAI Python SDK package. Naming our internal package `openai` would create a namespace collision — `import openai` inside our package would import itself rather than the SDK. Using `openai_provider` avoids this conflict.
+
+**Status**: Accepted
+
+---
+
+## ADR-012: MockReasoningEngine for Phase 0 Demo Agent
+
+**Decision**: The demo agent uses a `MockReasoningEngine` (rule-based, no LLM calls) in Phase 0 instead of a real `BaseLLMProvider` implementation.
+
+**Reason**: Phase 0 must be runnable without API keys. The mock engine demonstrates the deliberate vulnerability (authority spoofing + urgency) deterministically, making tests reproducible without external dependencies. The `DemoCustomerSupportAgent` accepts an optional `llm_provider` argument so it can be upgraded in Phase 5 without interface changes.
+
+**Constraint**: The mock engine's reasoning is for demonstration only. It does not replicate real LLM behavior. Real LLM-backed testing comes in Phase 5.
+
+**Status**: Accepted
+
+---
+
+## ADR-013: Providers Directory vs. packages/ Directory
+
+**Decision**: Concrete LLM provider implementations live in `providers/` (top-level), not in `packages/`.
+
+**Reason**: Provider packages contain SDK-specific code (google-generativeai, openai) that must never be imported by core packages. Placing them in a separate `providers/` directory makes the dependency boundary visually and structurally clear. Any `from packages.X import Y` in a provider file would be a lint-time error.
+
+**Status**: Accepted
