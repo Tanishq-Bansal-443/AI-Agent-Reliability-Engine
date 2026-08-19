@@ -23,6 +23,7 @@ class BaseScenarioExecutor(ABC):
         self,
         scenario: Scenario,
         adapter: BaseAgentAdapter,
+        challenge_pack_id: str | None = None,
     ) -> ScenarioExecutionResult:
         """
         Execute a single scenario against an agent adapter.

@@ -119,6 +119,10 @@ class Trace(BaseModel):
     agent_version: str = Field(description="Agent version at time of execution.")
     scenario_id: str = Field(description="Scenario that was executed.")
     scenario_name: str = Field(default="", description="Human-readable scenario name.")
+    challenge_pack_id: str | None = Field(
+        default=None,
+        description="Unique challenge pack identifier, if executed as part of a pack.",
+    )
     started_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When the trace started.",

@@ -259,66 +259,83 @@ class LocalMockSandbox(BaseSandbox):
         # Enforce sandbox execution timeout
         timeout = scenario.resource_limits.timeout_seconds
         start_env_event_count = len(self._env.event_log)
+        
+        exc_to_raise = None
+        agent_output = None
         try:
             agent_output = await asyncio.wait_for(
                 adapter.run(agent_input, runtime),
                 timeout=float(timeout),
             )
+        except asyncio.TimeoutError as e:
+            exc_to_raise = e
+        except Exception as e:
+            exc_to_raise = e
 
-            # Record tool calls from the runtime
-            for tool_call in runtime.call_history:
-                recorder.record_event(
-                    step_type=StepType.TOOL_CALL,
-                    input_data={
-                        "tool_name": tool_call.tool_name,
-                        "arguments": tool_call.arguments,
-                    },
-                    output_data={},
-                    duration_ms=0,
-                )
-                recorder.record_event(
-                    step_type=StepType.TOOL_RESULT,
-                    input_data={"tool_name": tool_call.tool_name},
-                    output_data={
-                        "result": tool_call.result,
-                        "error": tool_call.error,
-                        "success": tool_call.success,
-                    },
-                    duration_ms=tool_call.duration_ms,
-                )
-
-            # Record environment changes that occurred during this turn
-            new_env_events = self._env.event_log[start_env_event_count:]
-            for env_event in new_env_events:
-                recorder.record_event(
-                    step_type=StepType.ENVIRONMENT_CHANGE,
-                    input_data={},
-                    output_data=env_event,
-                )
-
-            # Record final response
+        # Record tool calls from the runtime
+        for tool_call in runtime.call_history:
             recorder.record_event(
-                step_type=StepType.FINAL_RESPONSE,
-                input_data={},
-                output_data={
-                    "response": agent_output.response,
-                    "tool_calls_made": [
-                        {"tool": tc.tool_name, "args": tc.arguments}
-                        for tc in agent_output.tool_calls_made
-                    ],
+                step_type=StepType.TOOL_CALL,
+                input_data={
+                    "tool_name": tool_call.tool_name,
+                    "arguments": tool_call.arguments,
                 },
+                output_data={},
+                duration_ms=0,
+            )
+            recorder.record_event(
+                step_type=StepType.TOOL_RESULT,
+                input_data={"tool_name": tool_call.tool_name},
+                output_data={
+                    "result": tool_call.result,
+                    "error": tool_call.error,
+                    "success": tool_call.success,
+                },
+                duration_ms=tool_call.duration_ms,
             )
 
-            return recorder.finish(status=ExecutionStatus.SUCCESS)
-
-        except asyncio.TimeoutError:
-            return recorder.finish(
-                status=ExecutionStatus.TIMEOUT,
-                error=f"Scenario execution timed out after {timeout} seconds.",
+        # Record environment changes that occurred during this turn
+        new_env_events = self._env.event_log[start_env_event_count:]
+        for env_event in new_env_events:
+            recorder.record_event(
+                step_type=StepType.ENVIRONMENT_CHANGE,
+                input_data={},
+                output_data=env_event,
             )
 
-        except Exception as exc:
-            return recorder.finish(
-                status=ExecutionStatus.ERROR,
-                error=str(exc),
-            )
+        if exc_to_raise is not None:
+            if isinstance(exc_to_raise, asyncio.TimeoutError):
+                recorder.record_event(
+                    step_type=StepType.ERROR,
+                    input_data={},
+                    output_data={"error": f"Scenario execution timed out after {timeout} seconds."},
+                )
+                return recorder.finish(
+                    status=ExecutionStatus.TIMEOUT,
+                    error=f"Scenario execution timed out after {timeout} seconds.",
+                )
+            else:
+                recorder.record_event(
+                    step_type=StepType.ERROR,
+                    input_data={},
+                    output_data={"error": str(exc_to_raise)},
+                )
+                return recorder.finish(
+                    status=ExecutionStatus.ERROR,
+                    error=str(exc_to_raise),
+                )
+
+        # Record final response
+        recorder.record_event(
+            step_type=StepType.FINAL_RESPONSE,
+            input_data={},
+            output_data={
+                "response": agent_output.response,
+                "tool_calls_made": [
+                    {"tool": tc.tool_name, "args": tc.arguments}
+                    for tc in agent_output.tool_calls_made
+                ],
+            },
+        )
+
+        return recorder.finish(status=ExecutionStatus.SUCCESS)

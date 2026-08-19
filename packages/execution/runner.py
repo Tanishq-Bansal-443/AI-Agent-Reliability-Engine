@@ -39,6 +39,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
         self,
         scenario: Scenario,
         adapter: BaseAgentAdapter,
+        challenge_pack_id: str | None = None,
     ) -> ScenarioExecutionResult:
         started_at = datetime.now(timezone.utc)
 
@@ -58,6 +59,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
             agent_version=adapter.agent_version,
             scenario_id=scenario.id,
             scenario_name=scenario.name,
+            challenge_pack_id=challenge_pack_id,
         )
 
         history: list[ConversationTurn] = []
@@ -85,23 +87,6 @@ class ScenarioExecutor(BaseScenarioExecutor):
             try:
                 # Execute turn in the sandbox
                 turn_trace = await self.sandbox.execute(temp_scenario, adapter)
-
-                # Check if this turn failed
-                if turn_trace.status in (ExecutionStatus.TIMEOUT, ExecutionStatus.ERROR):
-                    overall_status = turn_trace.status
-                    overall_error = turn_trace.error
-                    
-                    # Copy the error trace event to our master recorder
-                    for event in turn_trace.events:
-                        if event.type == StepType.ERROR:
-                            recorder.record_event(
-                                step_type=event.type,
-                                input_data=event.input_data,
-                                output_data=event.output_data,
-                                duration_ms=event.duration_ms,
-                                metadata=event.metadata,
-                            )
-                    break
 
                 # Copy events from turn trace (skipping USER_INPUT to avoid duplicate user messages)
                 is_last_turn = (idx == len(user_turns) - 1)
@@ -131,7 +116,12 @@ class ScenarioExecutor(BaseScenarioExecutor):
                             final_response = assistant_text
 
                 # Append assistant's turn to conversation history for future turns
-                history.append(ConversationTurn(role="assistant", content=assistant_text))
+                if turn_trace.status not in (ExecutionStatus.TIMEOUT, ExecutionStatus.ERROR):
+                    history.append(ConversationTurn(role="assistant", content=assistant_text))
+                else:
+                    overall_status = turn_trace.status
+                    overall_error = turn_trace.error
+                    break
 
             except Exception as exc:
                 overall_status = ExecutionStatus.ERROR
@@ -153,6 +143,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
             metadata={
                 "sandbox_type": self.sandbox.sandbox_type,
                 "turns_executed": len(history) // 2,
+                "timeout_seconds": scenario.resource_limits.timeout_seconds,
             },
         )
 
@@ -169,6 +160,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
 
         return ScenarioExecutionResult(
             scenario_id=scenario.id,
+            challenge_pack_id=challenge_pack_id,
             execution_status=exec_status,
             trace=master_trace,
             final_response=final_response,
@@ -240,7 +232,11 @@ class ExecutionRunner(BaseExecutionRunner):
                 scenario_to_run.resource_limits.timeout_seconds = per_scenario_timeout
 
             # Execute the scenario
-            result = await self.executor.execute(scenario_to_run, adapter)
+            result = await self.executor.execute(
+                scenario_to_run,
+                adapter,
+                challenge_pack_id=challenge_pack.id,
+            )
             scenario_results.append(result)
             trace_references[scenario.id] = result.trace.run_id
 

@@ -19,6 +19,10 @@ class ScenarioExecutionResult(BaseModel):
     """
 
     scenario_id: str = Field(description="ID of the executed scenario.")
+    challenge_pack_id: str | None = Field(
+        default=None,
+        description="ID of the challenge pack this execution belongs to.",
+    )
     execution_status: ExecutionStatus = Field(description="Final execution status.")
     trace: Trace = Field(description="The complete execution trace.")
     final_response: str | None = Field(default=None, description="The final response from the agent.")
