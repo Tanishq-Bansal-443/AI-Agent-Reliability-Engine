@@ -322,3 +322,21 @@ to None for Phase 4A backward compatibility):
 
 **Status**: Accepted
 
+---
+
+## ADR-020: Deterministic Regression Intelligence
+
+**Decision**: Implement a separate, fully deterministic regression analysis layer (`RegressionAnalyzer`) to compare reliability assessments and detect regression or improvement.
+
+### Architectural Principles
+
+- **Separation of Regression and Scoring**: Reliability scoring evaluates a single execution run/agent version against a set of scenarios. Regression analysis compares two distinct assessments (previous vs current) to determine trends (improved, regressed, stable, inconclusive). Keeping them separate prevents scoring logic from having to hold state or know about historical versions.
+- **Structured Failure Identity**: Generated free-form human-readable descriptions can change slightly between runs due to prompt non-determinism or detail changes. We construct a stable, deterministic failure identity key from the structured fields: category, sorted affected tools, sorted attack surfaces, and normalized title. This ensures the same logical failure is matched across assessments even if the natural language explanation varies.
+- **Critical/High Security Overrides**: A high overall numerical score can mask severe new exploits. If an agent introduces a new CRITICAL or HIGH failure, or if a persistent failure's severity increases to CRITICAL or HIGH, the overall report status is immediately overridden to `REGRESSED`, regardless of any positive score delta.
+- **Score Stability Thresholds**: Small numerical changes in evaluation scores can be caused by floating-point noise or minor test configuration differences. A configurable stability threshold (default `2.0` overall points) is used to prevent classifying minor fluctuations as regression or improvement.
+- **Inconclusive Status for Limited Assessments**: If either the previous or current execution has insufficient coverage or limited execution quality (e.g., sandbox failures or aborted scenarios), comparing them could result in false confidence. In such cases, the comparison is marked as `INCONCLUSIVE`, unless overridden by a severe structured security regression (e.g. a newly introduced CRITICAL failure).
+- **No LLM Dependency**: Like scoring, regression analysis and recommendation mapping must be 100% deterministic, explainable, fast, and testable offline. There is zero dependency on LLMs or active sandboxes.
+
+**Status**: Accepted
+
+

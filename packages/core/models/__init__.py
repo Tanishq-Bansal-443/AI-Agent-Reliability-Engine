@@ -63,6 +63,13 @@ from packages.core.models.reliability import (
     ReliabilityFinding,
     ReliabilityAssessment,
 )
+from packages.core.models.regression import (
+    RegressionStatus,
+    FailureChangeType,
+    RegressionFinding,
+    RegressionReport,
+)
+
 
 __all__ = [
     # agent
@@ -117,4 +124,10 @@ __all__ = [
     "ReliabilityScore",
     "ReliabilityFinding",
     "ReliabilityAssessment",
+    # regression
+    "RegressionStatus",
+    "FailureChangeType",
+    "RegressionFinding",
+    "RegressionReport",
 ]
+
