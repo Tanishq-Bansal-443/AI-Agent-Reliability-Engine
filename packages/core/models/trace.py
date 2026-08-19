@@ -35,10 +35,16 @@ class StepType(str, Enum):
 class ExecutionStatus(str, Enum):
     """The final status of an agent execution."""
 
-    SUCCESS = "success"
-    FAILURE = "failure"
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
     TIMEOUT = "timeout"
     ERROR = "error"
+
+    # Backwards compatibility
+    SUCCESS = "success"
+    FAILURE = "failure"
 
 
 class TraceEvent(BaseModel):

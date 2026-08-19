@@ -41,6 +41,11 @@ from packages.core.models.trace import (
     Execution,
     Trace,
 )
+from packages.core.models.execution import (
+    ScenarioExecutionResult,
+    ChallengePackExecutionStats,
+    ChallengePackExecutionResult,
+)
 from packages.core.models.evaluation import (
     Severity,
     FailureCategory,
@@ -87,6 +92,10 @@ __all__ = [
     "TraceEvent",
     "Execution",
     "Trace",
+    # execution
+    "ScenarioExecutionResult",
+    "ChallengePackExecutionStats",
+    "ChallengePackExecutionResult",
     # evaluation
     "Severity",
     "FailureCategory",

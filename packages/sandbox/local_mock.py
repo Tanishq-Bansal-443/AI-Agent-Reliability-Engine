@@ -208,7 +208,7 @@ class LocalMockSandbox(BaseSandbox):
         adapter: "BaseAgentAdapter",  # type: ignore[name-defined]
     ) -> Trace:
         """
-        Execute one scenario against one adapter in the mock environment.
+        Execute one turn/scenario against one adapter in the mock environment.
 
         Flow:
             1. Create a fresh TraceRecorder.
@@ -228,10 +228,11 @@ class LocalMockSandbox(BaseSandbox):
             scenario_name=scenario.name,
         )
 
-        # Record the initial user input
+        # Record the current user input for this execution step
+        user_message = scenario.turns[-1].content if scenario.turns else scenario.initial_message
         recorder.record_event(
             step_type=StepType.USER_INPUT,
-            input_data={"message": scenario.initial_message, "scenario": scenario.name},
+            input_data={"message": user_message, "scenario": scenario.name},
             output_data={},
         )
 
@@ -239,8 +240,12 @@ class LocalMockSandbox(BaseSandbox):
         registry = _build_tool_registry(self._env, recorder)
         runtime = ToolRuntime(registry)
 
-        # Build agent input
-        messages = [Message(role="user", content=scenario.initial_message)]
+        # Build agent input from scenario.turns if present, otherwise fall back to initial_message
+        if scenario.turns:
+            messages = [Message(role=t.role, content=t.content) for t in scenario.turns]
+        else:
+            messages = [Message(role="user", content=scenario.initial_message)]
+
         agent_input = AgentInput(
             conversation_id=run_id,
             messages=messages,
@@ -251,8 +256,9 @@ class LocalMockSandbox(BaseSandbox):
             },
         )
 
-        # Execute with timeout
+        # Enforce sandbox execution timeout
         timeout = scenario.resource_limits.timeout_seconds
+        start_env_event_count = len(self._env.event_log)
         try:
             agent_output = await asyncio.wait_for(
                 adapter.run(agent_input, runtime),
@@ -281,8 +287,9 @@ class LocalMockSandbox(BaseSandbox):
                     duration_ms=tool_call.duration_ms,
                 )
 
-            # Record environment changes
-            for env_event in self._env.event_log:
+            # Record environment changes that occurred during this turn
+            new_env_events = self._env.event_log[start_env_event_count:]
+            for env_event in new_env_events:
                 recorder.record_event(
                     step_type=StepType.ENVIRONMENT_CHANGE,
                     input_data={},
