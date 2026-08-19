@@ -6,6 +6,6 @@ Phase 0: Interface definitions only.
 Phase 2: Full implementation with deterministic + LLM-assisted profiling.
 """
 
-from packages.profiler.base import BaseProfiler, StaticProfiler
+from packages.profiler.base import BaseProfiler, StaticProfiler, LLMProfiler
 
-__all__ = ["BaseProfiler", "StaticProfiler"]
+__all__ = ["BaseProfiler", "StaticProfiler", "LLMProfiler"]

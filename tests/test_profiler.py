@@ -160,3 +160,198 @@ class TestDeterministicProfiler:
         d2.pop("profiled_at", None)
         
         assert d1 == d2
+
+
+from typing import Any
+from packages.core.providers.base import BaseLLMProvider, LLMMessage, LLMResponse
+from packages.profiler.base import LLMProfiler
+from packages.core.models.agent import RiskProfile
+
+
+class MockLLMProvider(BaseLLMProvider):
+    def __init__(self, response_content: str | None = None, should_fail: bool = False) -> None:
+        self.response_content = response_content
+        self.should_fail = should_fail
+        self.calls = []
+
+    @property
+    def provider_name(self) -> str:
+        return "mock"
+
+    @property
+    def model_name(self) -> str:
+        return "mock-model"
+
+    async def complete(
+        self,
+        messages: list[LLMMessage],
+        *,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+        stop_sequences: list[str] | None = None,
+    ) -> LLMResponse:
+        self.calls.append(messages)
+        if self.should_fail:
+            raise RuntimeError("API key is missing or connection failed")
+        return LLMResponse(
+            content=self.response_content,
+            finish_reason="stop",
+            model=self.model_name,
+        )
+
+    async def complete_with_tools(
+        self,
+        messages: list[LLMMessage],
+        tools: list[Any],
+        *,
+        temperature: float = 0.0,
+        max_tokens: int = 2048,
+    ) -> LLMResponse:
+        raise NotImplementedError()
+
+
+mock_json_response = """
+{
+  "capabilities": [
+    {
+      "name": "can_exploit_support_ambiguity",
+      "description": "Exploiting ambiguity in Support Agent instructions.",
+      "risk_level": "medium",
+      "related_tools": ["refund_order"]
+    }
+  ],
+  "attack_surfaces": [
+    {
+      "attack_surface": "authorization_ambiguity",
+      "reason": "Vague rules on order access control."
+    }
+  ],
+  "destructive_tools": ["refund_order"],
+  "sensitive_tools": [],
+  "risk_indicators": [
+    {
+      "name": "lack_of_escalation_control",
+      "severity": "high",
+      "description": "Agent may make decisions without confirming with supervisor.",
+      "evidence": "Prompt lacks clear validation directives."
+    }
+  ],
+  "evidence": {
+    "escalation_policy": "No escalation protocol specified for high-value orders."
+  }
+}
+"""
+
+
+@pytest.mark.asyncio
+class TestLLMProfiler:
+    async def test_successful_llm_profiling(self) -> None:
+        provider = MockLLMProvider(response_content=mock_json_response)
+        profiler = LLMProfiler(provider)
+        
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        
+        profile = await profiler.profile(agent)
+        assert profile.agent_id == "test-agent"
+        assert len(profile.capabilities) == 1
+        assert profile.capabilities[0].name == "can_exploit_support_ambiguity"
+        assert len(profile.attack_surfaces) == 1
+        assert profile.attack_surfaces[0].attack_surface == "authorization_ambiguity"
+        assert profile.destructive_tools == ["refund_order"]
+        assert len(profile.risk_indicators) == 1
+        assert profile.risk_indicators[0].name == "lack_of_escalation_control"
+        assert profile.evidence == {"escalation_policy": "No escalation protocol specified for high-value orders."}
+        assert len(provider.calls) == 1
+
+    async def test_llm_profiler_missing_provider(self) -> None:
+        profiler = LLMProfiler(None)
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        profile = await profiler.profile(agent)
+        assert profile.agent_id == "test-agent"
+        assert len(profile.capabilities) == 0
+        assert len(profile.attack_surfaces) == 0
+        assert len(profile.destructive_tools) == 0
+        assert len(profile.risk_indicators) == 0
+        assert profile.evidence == {}
+
+    async def test_llm_profiler_provider_failure(self) -> None:
+        provider = MockLLMProvider(should_fail=True)
+        profiler = LLMProfiler(provider)
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        profile = await profiler.profile(agent)
+        # Should gracefully return empty profile
+        assert profile.agent_id == "test-agent"
+        assert len(profile.capabilities) == 0
+        assert len(profile.attack_surfaces) == 0
+
+    async def test_llm_profiler_malformed_output(self) -> None:
+        provider = MockLLMProvider(response_content="this is not json")
+        profiler = LLMProfiler(provider)
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        profile = await profiler.profile(agent)
+        # Should gracefully return empty profile
+        assert profile.agent_id == "test-agent"
+        assert len(profile.capabilities) == 0
+
+    async def test_llm_profiler_with_markdown_json(self) -> None:
+        markdown_response = f"```json\n{mock_json_response}\n```"
+        provider = MockLLMProvider(response_content=markdown_response)
+        profiler = LLMProfiler(provider)
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        profile = await profiler.profile(agent)
+        assert profile.agent_id == "test-agent"
+        assert len(profile.capabilities) == 1
+
+    async def test_llm_profiler_passes_base_profile_context(self) -> None:
+        provider = MockLLMProvider(response_content=mock_json_response)
+        profiler = LLMProfiler(provider)
+        agent = Agent(
+            id="test-agent",
+            name="Test Support",
+            system_prompt="Help customers.",
+            tools=[],
+        )
+        
+        base_profile = RiskProfile(
+            agent_id="test-agent",
+            capabilities=[],
+            attack_surfaces=[],
+            destructive_tools=["delete_database"],
+            sensitive_tools=[],
+            risk_indicators=[],
+            evidence={"pre_existing": "some base evidence"},
+        )
+        
+        await profiler.profile(agent, base_profile=base_profile)
+        
+        # Verify that the LLM call prompt contained the base profile info
+        assert len(provider.calls) == 1
+        user_message_content = provider.calls[0][1].content
+        assert "delete_database" in user_message_content
+        assert "pre_existing" in user_message_content
+
