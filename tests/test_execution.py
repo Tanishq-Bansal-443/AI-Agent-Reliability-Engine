@@ -13,6 +13,7 @@ from packages.core.models.agent import AgentInput, AgentOutput, Message
 from packages.core.models.execution import (
     ScenarioExecutionResult,
     ChallengePackExecutionResult,
+    ExecutionRun,
 )
 from packages.core.models.scenario import (
     Scenario,
@@ -25,7 +26,7 @@ from packages.core.models.scenario import (
     AttackStrategyType,
 )
 from packages.core.models.trace import ExecutionStatus, StepType, Trace, TraceEvent
-from packages.execution.runner import ScenarioExecutor, ExecutionRunner
+from packages.execution.runner import ScenarioExecutor, ExecutionRunner, save_run, load_run
 from packages.sandbox.local_mock import LocalMockSandbox
 from packages.tracing.recorder import load_trace, save_trace, TraceRecorder
 from agents.demo_customer_support.adapter import DemoAgentAdapter
@@ -297,7 +298,7 @@ class TestExecutionRunner:
             scenarios=scenarios,
         )
 
-        runner = ExecutionRunner()
+        runner = ExecutionRunner(persist=False)
         adapter = DemoAgentAdapter()
 
         result = await runner.run(pack, adapter)
@@ -324,7 +325,7 @@ class TestExecutionRunner:
             scenarios=scenarios,
         )
 
-        runner = ExecutionRunner()
+        runner = ExecutionRunner(persist=False)
         adapter = DemoAgentAdapter()
 
         result = await runner.run(pack, adapter)
@@ -347,7 +348,7 @@ class TestExecutionRunner:
             scenarios=scenarios,
         )
 
-        runner = ExecutionRunner(max_scenarios=2)
+        runner = ExecutionRunner(max_scenarios=2, persist=False)
         adapter = DemoAgentAdapter()
 
         result = await runner.run(pack, adapter)
@@ -370,7 +371,7 @@ class TestExecutionRunner:
                 await asyncio.sleep(0.5)
                 return await super().run(agent_input, runtime)
 
-        runner = ExecutionRunner()
+        runner = ExecutionRunner(persist=False)
         result = await runner.run(pack, SleepAdapter(), per_scenario_timeout=0)
 
         assert result.scenario_results[0].execution_status == ExecutionStatus.TIMEOUT
@@ -395,7 +396,7 @@ class TestExecutionRunner:
         )
 
         # fail_fast is False by default
-        runner = ExecutionRunner(fail_fast=False)
+        runner = ExecutionRunner(fail_fast=False, persist=False)
         result = await runner.run(pack, ErrorAdapter())
 
         assert len(result.scenario_results) == 2
@@ -423,7 +424,7 @@ class TestExecutionRunner:
             scenarios=scenarios,
         )
 
-        runner = ExecutionRunner(fail_fast=True)
+        runner = ExecutionRunner(fail_fast=True, persist=False)
         result = await runner.run(pack, ErrorAdapter())
 
         # Only the first scenario should be executed. The rest are pending / skipped.
@@ -452,7 +453,7 @@ class TestExecutionRunner:
             scenarios=scenarios,
         )
 
-        runner = ExecutionRunner()
+        runner = ExecutionRunner(persist=False)
         result = await runner.run(pack, adapter)
 
         # Verify that both executed to completion and status is COMPLETED
@@ -752,4 +753,77 @@ class TestExecutionFidelity:
         assert events[3].output_data["data"]["order_id"] == "ORD-4812"
         # 5. FINAL_RESPONSE
         assert "refund" in events[4].output_data["response"].lower()
+
+
+@pytest.mark.asyncio
+class TestExecutionRunIntegration:
+    """Tests for Phase 3C run execution and integration requirements."""
+
+    async def test_authoritative_run_id_propagation(self) -> None:
+        """Verify that ExecutionRunner creates exactly one authoritative run_id and propagates it to all downstream objects."""
+        scenarios = [
+            make_test_scenario("Scen X", "Hello"),
+            make_test_scenario("Scen Y", "World"),
+        ]
+        pack = ChallengePack(
+            name="Authoritative ID Test Pack",
+            agent_id="demo-customer-support-v1",
+            scenarios=scenarios,
+        )
+
+        runner = ExecutionRunner(persist=False)
+        adapter = DemoAgentAdapter()
+        result = await runner.run(pack, adapter)
+
+        assert isinstance(result, ChallengePackExecutionResult)
+        assert result.run_id is not None
+        assert len(result.run_id) > 0
+
+        # Check ScenarioExecutionResults and Traces for the authoritative run ID
+        for scen_res in result.scenario_results:
+            assert scen_res.execution_run_id == result.run_id
+            assert scen_res.trace.execution_run_id == result.run_id
+
+    async def test_execution_run_persistence_roundtrip(self) -> None:
+        """Verify that ExecutionRun can be saved to disk and loaded back correctly."""
+        scenarios = [
+            make_test_scenario("Scen P", "Check status ORD-1001"),
+        ]
+        pack = ChallengePack(
+            name="Persistence Test Pack",
+            agent_id="demo-customer-support-v1",
+            scenarios=scenarios,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # We configure runner to persist into temp directory so we don't pollute the repository
+            runner = ExecutionRunner(persist=True, runs_dir=tmpdir, traces_dir=tmpdir)
+            adapter = DemoAgentAdapter()
+            result = await runner.run(pack, adapter)
+
+            run_id = result.run_id
+            run_file = Path(tmpdir) / f"{run_id}.json"
+            assert run_file.exists()
+
+            # Load the execution run and verify contents
+            loaded_run = load_run(run_file)
+            assert loaded_run.run_id == run_id
+            assert loaded_run.challenge_pack_id == pack.id
+            assert loaded_run.agent_id == adapter.agent_id
+            assert loaded_run.agent_version == adapter.agent_version
+            assert loaded_run.status == ExecutionStatus.COMPLETED
+            assert loaded_run.duration_ms > 0
+            assert len(loaded_run.scenario_ids) == 1
+            assert loaded_run.scenario_ids[0] == scenarios[0].id
+            assert loaded_run.trace_references[scenarios[0].id] == result.scenario_results[0].trace.run_id
+
+            # Verify that trace JSON file was also written to the custom temp traces directory
+            trace_id = result.scenario_results[0].trace.run_id
+            trace_file = Path(tmpdir) / f"{trace_id}.json"
+            assert trace_file.exists()
+
+            # Load the trace and check execution_run_id linking
+            loaded_trace = load_trace(trace_file)
+            assert loaded_trace.execution_run_id == run_id
+
 

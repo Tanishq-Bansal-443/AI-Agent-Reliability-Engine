@@ -170,15 +170,19 @@ async def test_vertical_slice_writes_real_trace_to_traces_dir() -> None:
     traces_dir = Path("traces")
     filepath = save_trace(trace, traces_dir)
 
-    assert filepath.exists()
-    assert filepath.suffix == ".json"
+    try:
+        assert filepath.exists()
+        assert filepath.suffix == ".json"
 
-    # Reload and verify
-    reloaded = load_trace(filepath)
-    assert reloaded.run_id == trace.run_id
+        # Reload and verify
+        reloaded = load_trace(filepath)
+        assert reloaded.run_id == trace.run_id
 
-    print(f"\n✅ Trace written to: {filepath}")
-    print(f"   Run ID: {trace.run_id}")
+        print(f"\n✅ Trace written to: {filepath}")
+        print(f"   Run ID: {trace.run_id}")
+    finally:
+        if filepath.exists():
+            filepath.unlink()
 
 
 @pytest.mark.asyncio

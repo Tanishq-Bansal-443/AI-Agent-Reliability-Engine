@@ -40,6 +40,10 @@ class Settings(BaseSettings):
         default="./traces",
         description="Directory for trace JSON files.",
     )
+    runs_dir: str = Field(
+        default="./runs",
+        description="Directory for execution run JSON files.",
+    )
 
     # Logging
     log_level: str = Field(default="INFO", description="Logging level.")
@@ -54,6 +58,11 @@ class Settings(BaseSettings):
     def traces_path(self) -> Path:
         """Resolved path to the traces directory."""
         return Path(self.traces_dir).resolve()
+
+    @property
+    def runs_path(self) -> Path:
+        """Resolved path to the runs directory."""
+        return Path(self.runs_dir).resolve()
 
     @property
     def db_path(self) -> Path:

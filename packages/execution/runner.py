@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -14,13 +16,15 @@ from packages.core.models.execution import (
     ScenarioExecutionResult,
     ChallengePackExecutionResult,
     ChallengePackExecutionStats,
+    ExecutionRun,
 )
 from packages.core.models.scenario import Scenario, ChallengePack, ConversationTurn
 from packages.core.models.trace import ExecutionStatus, StepType, Trace
 from packages.execution.base import BaseScenarioExecutor, BaseExecutionRunner
 from packages.sandbox.base import BaseSandbox
 from packages.sandbox.local_mock import LocalMockSandbox
-from packages.tracing.recorder import TraceRecorder
+from packages.shared.config import get_settings
+from packages.tracing.recorder import TraceRecorder, save_trace
 
 
 class ScenarioExecutor(BaseScenarioExecutor):
@@ -40,6 +44,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
         scenario: Scenario,
         adapter: BaseAgentAdapter,
         challenge_pack_id: str | None = None,
+        execution_run_id: str | None = None,
     ) -> ScenarioExecutionResult:
         started_at = datetime.now(timezone.utc)
 
@@ -60,6 +65,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
             scenario_id=scenario.id,
             scenario_name=scenario.name,
             challenge_pack_id=challenge_pack_id,
+            execution_run_id=execution_run_id,
         )
 
         history: list[ConversationTurn] = []
@@ -161,6 +167,7 @@ class ScenarioExecutor(BaseScenarioExecutor):
         return ScenarioExecutionResult(
             scenario_id=scenario.id,
             challenge_pack_id=challenge_pack_id,
+            execution_run_id=execution_run_id,
             execution_status=exec_status,
             trace=master_trace,
             final_response=final_response,
@@ -187,10 +194,16 @@ class ExecutionRunner(BaseExecutionRunner):
         executor: BaseScenarioExecutor | None = None,
         max_scenarios: int | None = None,
         fail_fast: bool = False,
+        persist: bool = True,
+        runs_dir: str | Path | None = None,
+        traces_dir: str | Path | None = None,
     ) -> None:
         self.executor = executor or ScenarioExecutor()
         self.max_scenarios = max_scenarios
         self.fail_fast = fail_fast
+        self.persist = persist
+        self.runs_dir = runs_dir
+        self.traces_dir = traces_dir
 
     async def run(
         self,
@@ -204,6 +217,23 @@ class ExecutionRunner(BaseExecutionRunner):
         scenarios = challenge_pack.scenarios
         if self.max_scenarios is not None:
             scenarios = scenarios[:self.max_scenarios]
+
+        # 1. Create a single authoritative run ID and the ExecutionRun metadata
+        run_id = str(uuid4())
+        execution_run = ExecutionRun(
+            run_id=run_id,
+            challenge_pack_id=challenge_pack.id,
+            agent_id=adapter.agent_id,
+            agent_version=adapter.agent_version,
+            status=ExecutionStatus.RUNNING,
+            started_at=started_at,
+            scenario_ids=[s.id for s in scenarios],
+            metadata={
+                "fail_fast": self.fail_fast,
+                "max_scenarios": self.max_scenarios,
+                "per_scenario_timeout": per_scenario_timeout,
+            },
+        )
 
         scenario_results: list[ScenarioExecutionResult] = []
         trace_references: dict[str, str] = {}
@@ -231,14 +261,20 @@ class ExecutionRunner(BaseExecutionRunner):
                 scenario_to_run.resource_limits = scenario.resource_limits.model_copy(deep=True)
                 scenario_to_run.resource_limits.timeout_seconds = per_scenario_timeout
 
-            # Execute the scenario
+            # Execute the scenario and pass down the single authoritative run_id
             result = await self.executor.execute(
                 scenario_to_run,
                 adapter,
                 challenge_pack_id=challenge_pack.id,
+                execution_run_id=run_id,
             )
             scenario_results.append(result)
             trace_references[scenario.id] = result.trace.run_id
+
+            # Persist Trace immediately if enabled
+            if self.persist:
+                t_dir = self.traces_dir or get_settings().traces_dir
+                save_trace(result.trace, traces_dir=t_dir)
 
             running_scenarios -= 1
 
@@ -281,7 +317,20 @@ class ExecutionRunner(BaseExecutionRunner):
             total_duration_ms=total_duration_ms,
         )
 
+        # Update and finalize the ExecutionRun object
+        execution_run.status = overall_status
+        execution_run.completed_at = completed_at
+        execution_run.duration_ms = total_duration_ms
+        execution_run.trace_references = trace_references
+        execution_run.stats = stats
+
+        # Persist ExecutionRun if enabled
+        if self.persist:
+            r_dir = self.runs_dir or get_settings().runs_dir
+            save_run(execution_run, runs_dir=r_dir)
+
         return ChallengePackExecutionResult(
+            run_id=run_id,
             challenge_pack_id=challenge_pack.id,
             agent_id=adapter.agent_id,
             agent_version=adapter.agent_version,
@@ -295,3 +344,51 @@ class ExecutionRunner(BaseExecutionRunner):
                 "per_scenario_timeout": per_scenario_timeout,
             },
         )
+
+
+def save_run(run: ExecutionRun, runs_dir: str | Path = "runs") -> Path:
+    """
+    Serialize an ExecutionRun to JSON and write it to the runs directory.
+
+    Args:
+        run: The ExecutionRun to save.
+        runs_dir: Directory to write runs into (default: 'runs/').
+
+    Returns:
+        Path to the written file.
+    """
+    runs_path = Path(runs_dir)
+    runs_path.mkdir(parents=True, exist_ok=True)
+
+    filename = f"{run.run_id}.json"
+    filepath = runs_path / filename
+
+    run_data = run.model_dump(mode="json")
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(run_data, f, indent=2, default=str)
+
+    return filepath
+
+
+def load_run(filepath: str | Path) -> ExecutionRun:
+    """
+    Load an ExecutionRun from a JSON file.
+
+    Args:
+        filepath: Path to the run JSON file.
+
+    Returns:
+        Deserialized ExecutionRun object.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the file cannot be parsed as an ExecutionRun.
+    """
+    path = Path(filepath)
+    if not path.exists():
+        raise FileNotFoundError(f"Run file not found: {filepath}")
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return ExecutionRun.model_validate(data)

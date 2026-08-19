@@ -45,6 +45,7 @@ from packages.core.models.execution import (
     ScenarioExecutionResult,
     ChallengePackExecutionStats,
     ChallengePackExecutionResult,
+    ExecutionRun,
 )
 from packages.core.models.evaluation import (
     Severity,
@@ -96,6 +97,7 @@ __all__ = [
     "ScenarioExecutionResult",
     "ChallengePackExecutionStats",
     "ChallengePackExecutionResult",
+    "ExecutionRun",
     # evaluation
     "Severity",
     "FailureCategory",

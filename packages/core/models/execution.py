@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from packages.core.models.trace import ExecutionStatus, Trace
@@ -22,6 +23,10 @@ class ScenarioExecutionResult(BaseModel):
     challenge_pack_id: str | None = Field(
         default=None,
         description="ID of the challenge pack this execution belongs to.",
+    )
+    execution_run_id: str | None = Field(
+        default=None,
+        description="ID of the execution run this scenario execution belongs to.",
     )
     execution_status: ExecutionStatus = Field(description="Final execution status.")
     trace: Trace = Field(description="The complete execution trace.")
@@ -65,6 +70,7 @@ class ChallengePackExecutionResult(BaseModel):
     The execution result of a complete challenge pack.
     """
 
+    run_id: str = Field(description="ID of the execution run.")
     challenge_pack_id: str = Field(description="ID of the executed challenge pack.")
     agent_id: str = Field(description="ID of the executed agent.")
     agent_version: str = Field(description="Version of the executed agent.")
@@ -88,3 +94,51 @@ class ChallengePackExecutionResult(BaseModel):
         default_factory=dict,
         description="Deterministic metadata.",
     )
+
+
+class ExecutionRun(BaseModel):
+    """
+    Represents a complete, reproducible run of a ChallengePack.
+    Acts as the primary execution artifact for the Evaluation Engine.
+    """
+
+    run_id: str = Field(
+        default_factory=lambda: str(uuid4()),
+        description="Unique ID for this execution run.",
+    )
+    challenge_pack_id: str = Field(description="ID of the executed challenge pack.")
+    agent_id: str = Field(description="ID of the executed agent.")
+    agent_version: str = Field(description="Version of the executed agent.")
+    status: ExecutionStatus = Field(
+        default=ExecutionStatus.PENDING,
+        description="Overall run status.",
+    )
+    started_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        description="When the run started.",
+    )
+    completed_at: datetime | None = Field(
+        default=None,
+        description="When the run completed.",
+    )
+    duration_ms: int = Field(
+        default=0,
+        description="Total duration of this run in milliseconds.",
+    )
+    scenario_ids: list[str] = Field(
+        default_factory=list,
+        description="List of scenario IDs included in this run.",
+    )
+    trace_references: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mapping of scenario_id to trace_id.",
+    )
+    stats: ChallengePackExecutionStats = Field(
+        default_factory=ChallengePackExecutionStats,
+        description="Aggregate execution statistics.",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Configuration and system metadata for reproducibility.",
+    )
+

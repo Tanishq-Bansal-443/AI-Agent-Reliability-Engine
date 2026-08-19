@@ -123,6 +123,10 @@ class Trace(BaseModel):
         default=None,
         description="Unique challenge pack identifier, if executed as part of a pack.",
     )
+    execution_run_id: str | None = Field(
+        default=None,
+        description="Unique identifier of the execution run this trace belongs to.",
+    )
     started_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When the trace started.",

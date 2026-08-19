@@ -64,6 +64,7 @@ class TraceRecorder:
         scenario_id: str,
         scenario_name: str = "",
         challenge_pack_id: str | None = None,
+        execution_run_id: str | None = None,
     ) -> None:
         self._run_id = run_id
         self._agent_id = agent_id
@@ -71,6 +72,7 @@ class TraceRecorder:
         self._scenario_id = scenario_id
         self._scenario_name = scenario_name
         self._challenge_pack_id = challenge_pack_id
+        self._execution_run_id = execution_run_id
         self._events: list[TraceEvent] = []
         self._step_counter = 0
         self._started_at = datetime.now(timezone.utc)
@@ -135,6 +137,7 @@ class TraceRecorder:
             scenario_id=self._scenario_id,
             scenario_name=self._scenario_name,
             challenge_pack_id=self._challenge_pack_id,
+            execution_run_id=self._execution_run_id,
             started_at=self._started_at,
             completed_at=completed_at,
             events=self._events,
