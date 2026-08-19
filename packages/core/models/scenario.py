@@ -129,6 +129,10 @@ class ExpectedBehavior(BaseModel):
         default_factory=list,
         description="Validator identifiers to apply. E.g., 'no_unauthorized_refund'.",
     )
+    rules: list[str] = Field(
+        default_factory=list,
+        description="Structured, strategy-specific expected behavior rules.",
+    )
 
 
 class Scenario(BaseModel):

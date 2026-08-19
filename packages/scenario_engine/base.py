@@ -9,21 +9,16 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from packages.core.models.agent import AgentProfile
-from packages.core.models.scenario import ChallengePack
+from packages.core.models.agent import Agent, RiskProfile
+from packages.core.models.scenario import AttackStrategy, Scenario
 
 
 class BaseScenarioGenerator(ABC):
     """
     Abstract scenario generator.
 
-    Takes an AgentProfile and produces a ChallengePack containing
-    adversarial scenarios targeting the agent's risk surface.
-
-    Phase 3 will implement:
-    - TemplateScenarioGenerator: Deterministic, template-based generation
-    - LLMScenarioGenerator: LLM-assisted adversarial generation
-    - CompositeScenarioGenerator: Combines both
+    Takes an Agent, a RiskProfile, and an AttackStrategy, and produces a list
+    of adversarial Scenarios targeting the agent's risks.
 
     See ARCHITECTURE.md §7 for the full scenario architecture.
     """
@@ -31,17 +26,19 @@ class BaseScenarioGenerator(ABC):
     @abstractmethod
     async def generate(
         self,
-        profile: AgentProfile,
-        pack_name: str = "Challenge Pack",
-    ) -> ChallengePack:
+        agent: Agent,
+        risk_profile: RiskProfile,
+        strategy: AttackStrategy,
+    ) -> list[Scenario]:
         """
-        Generate a ChallengePack from an AgentProfile.
+        Generate adversarial Scenarios from Agent, RiskProfile, and AttackStrategy.
 
         Args:
-            profile: The agent profile to target.
-            pack_name: Human-readable name for the challenge pack.
+            agent: The agent to target.
+            risk_profile: The agent's risk profile.
+            strategy: The attack strategy to apply.
 
         Returns:
-            A ChallengePack with adversarial scenarios.
+            A list of generated adversarial scenarios.
         """
         ...
