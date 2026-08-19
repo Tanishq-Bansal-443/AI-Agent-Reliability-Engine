@@ -198,6 +198,10 @@ class ChallengePack(BaseModel):
     name: str = Field(description="Human-readable pack name.")
     description: str = Field(default="", description="Pack description.")
     agent_id: str = Field(description="The agent this pack targets.")
+    agent_version: str | None = Field(
+        default=None,
+        description="The version of the agent this pack targets.",
+    )
     scenarios: list[Scenario] = Field(
         default_factory=list,
         description="The scenarios in this pack.",
@@ -207,6 +211,18 @@ class ChallengePack(BaseModel):
         description="Default resource limits for all scenarios in this pack.",
     )
     version: str = Field(default="1.0.0", description="Pack version.")
+    strategy_coverage: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Strategy coverage: strategy_id -> covered (True/False).",
+    )
+    risk_coverage: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Risk coverage: risk -> covered (True/False).",
+    )
+    attack_surface_coverage: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Attack surface coverage: attack_surface -> covered (True/False).",
+    )
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -214,3 +230,4 @@ class ChallengePack(BaseModel):
     def scenario_count(self) -> int:
         """Total number of scenarios in this pack."""
         return len(self.scenarios)
+

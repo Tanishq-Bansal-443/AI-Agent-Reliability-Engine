@@ -10,10 +10,14 @@ from packages.scenario_engine.base import BaseScenarioGenerator
 from packages.scenario_engine.attack_strategy import AttackStrategyRegistry
 from packages.scenario_engine.generator import DeterministicScenarioGenerator
 from packages.scenario_engine.validator import validate_scenario
+from packages.scenario_engine.builder import ChallengePackBuilder, ChallengePackConfig
 
 __all__ = [
     "BaseScenarioGenerator",
     "AttackStrategyRegistry",
     "DeterministicScenarioGenerator",
     "validate_scenario",
+    "ChallengePackBuilder",
+    "ChallengePackConfig",
 ]
+
