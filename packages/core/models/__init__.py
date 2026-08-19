@@ -46,6 +46,13 @@ from packages.core.models.evaluation import (
     FailureCategory,
     Failure,
     EvaluationResult,
+    # Phase 4A additions
+    EvaluationVerdict,
+    EvaluationStatus,
+    EvidenceItem,
+    EvaluationFinding,
+    ScenarioEvaluationResult,
+    ChallengePackEvaluationResult,
 )
 from packages.core.models.reliability import (
     RegressionTest,
@@ -87,11 +94,17 @@ __all__ = [
     "TraceEvent",
     "Execution",
     "Trace",
-    # evaluation
+    # evaluation (Phase 0 + Phase 4A)
     "Severity",
     "FailureCategory",
     "Failure",
     "EvaluationResult",
+    "EvaluationVerdict",
+    "EvaluationStatus",
+    "EvidenceItem",
+    "EvaluationFinding",
+    "ScenarioEvaluationResult",
+    "ChallengePackEvaluationResult",
     # reliability
     "RegressionTest",
     "ReliabilityScore",

@@ -3,6 +3,17 @@ Evaluation domain models.
 
 Defines the contracts for evaluation results, failure details,
 and failure taxonomy.
+
+Phase 4A adds:
+- EvidenceItem: machine-readable trace-backed evidence unit
+- EvaluationVerdict: PASS | FAIL | INCONCLUSIVE taxonomy
+- EvaluationStatus: EVALUATED | NOT_EVALUATED | EVALUATION_ERROR
+- EvaluationFinding: per-validator structured finding
+- ScenarioEvaluationResult: authoritative Phase 4A per-scenario result
+- ChallengePackEvaluationResult: top-level aggregate across all scenarios
+
+The existing EvaluationResult (score-based float) is preserved
+unchanged for backward compatibility.
 """
 
 from __future__ import annotations
@@ -12,6 +23,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+
+# ---------------------------------------------------------------------------
+# Existing Phase 0 models — preserved exactly
+# ---------------------------------------------------------------------------
 
 class Severity(str, Enum):
     """Severity of a discovered failure."""
@@ -117,3 +132,220 @@ class EvaluationResult(BaseModel):
     def has_critical_failure(self) -> bool:
         """Whether any critical failures were found."""
         return len(self.critical_failures) > 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A — new evaluation contracts
+# ---------------------------------------------------------------------------
+
+class EvaluationVerdict(str, Enum):
+    """
+    The three-value verdict taxonomy for Phase 4A.
+
+    Aggregation priority: FAIL > INCONCLUSIVE > PASS
+    A PASS from one validator must never override FAIL or INCONCLUSIVE
+    from another validator.
+    """
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    INCONCLUSIVE = "INCONCLUSIVE"
+
+
+class EvaluationStatus(str, Enum):
+    """
+    Status of the evaluation process itself.
+
+    Separates infrastructure/execution failures from agent behavior failures.
+    A sandbox timeout must never appear as a security FAIL.
+    """
+
+    EVALUATED = "EVALUATED"
+    NOT_EVALUATED = "NOT_EVALUATED"   # trace.status is TIMEOUT or ERROR
+    EVALUATION_ERROR = "EVALUATION_ERROR"  # evaluator itself raised an exception
+
+
+class EvidenceItem(BaseModel):
+    """
+    A single machine-readable piece of evidence backing a finding.
+
+    Always references a real TraceEvent when available.
+    Evidence items that cannot be trace-backed are marked with
+    trace_backed=False so consumers know they are inferred.
+    """
+
+    event_index: int | None = Field(
+        default=None,
+        description="step_index of the TraceEvent this evidence references.",
+    )
+    tool: str | None = Field(
+        default=None,
+        description="Tool name if this evidence is about a tool call.",
+    )
+    content: str = Field(
+        description="Human-readable content of this evidence.",
+    )
+    reason: str = Field(
+        description="Why this event/content is evidence for the verdict.",
+    )
+    trace_backed: bool = Field(
+        default=True,
+        description="Whether this evidence item references a real TraceEvent.",
+    )
+
+
+class EvaluationFinding(BaseModel):
+    """
+    A structured finding produced by a single validator.
+
+    Every FAIL or INCONCLUSIVE finding must carry at least one EvidenceItem
+    with trace_backed=True where the trace contains sufficient data.
+    A finding without trace-backed evidence must set trace_backed=False
+    on all its evidence items — never invent events.
+    """
+
+    requirement: str = Field(
+        description="What rule or requirement was evaluated (human-readable).",
+    )
+    verdict: EvaluationVerdict = Field(
+        description="PASS | FAIL | INCONCLUSIVE for this specific check.",
+    )
+    evidence: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Trace-backed evidence items supporting this verdict.",
+    )
+    rule: str | None = Field(
+        default=None,
+        description="The rule identifier that produced this finding (e.g., 'forbidden_tools').",
+    )
+    category: FailureCategory | None = Field(
+        default=None,
+        description="Failure category if verdict is FAIL.",
+    )
+    validator: str = Field(
+        description="Name of the validator that produced this finding.",
+    )
+
+
+class ScenarioEvaluationResult(BaseModel):
+    """
+    The authoritative Phase 4A result for evaluating one scenario.
+
+    Produced by DeterministicEvaluator. Consumed by ChallengePackEvaluator
+    and future LLM judge layers.
+
+    Evaluation flow:
+        Scenario + Trace → DeterministicEvaluator → ScenarioEvaluationResult
+
+    Verdict aggregation rule (strictly enforced):
+        FAIL > INCONCLUSIVE > PASS
+    """
+
+    scenario_id: str = Field(description="The scenario that was evaluated.")
+    trace_id: str = Field(description="The trace that was consumed.")
+    scenario_name: str = Field(default="", description="Human-readable scenario name.")
+
+    verdict: EvaluationVerdict = Field(
+        description="Aggregated verdict: PASS | FAIL | INCONCLUSIVE.",
+    )
+    evaluation_status: EvaluationStatus = Field(
+        description="Status of the evaluation process itself.",
+    )
+
+    # Severity comes from the scenario definition, not invented by the evaluator.
+    severity: str = Field(
+        description="Severity level from the scenario (RiskLevel value).",
+    )
+
+    findings: list[EvaluationFinding] = Field(
+        default_factory=list,
+        description="Per-validator findings, in validator execution order.",
+    )
+    violated_rules: list[str] = Field(
+        default_factory=list,
+        description="Identifiers of rules that were violated (e.g., 'forbidden_tools', 'should_refuse').",
+    )
+
+    # Preserve the execution status from the trace for audit purposes.
+    execution_status: str = Field(
+        description="ExecutionStatus from the trace (success | timeout | error | failure).",
+    )
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def passed(self) -> bool:
+        """True iff verdict is PASS."""
+        return self.verdict == EvaluationVerdict.PASS
+
+    @property
+    def failed(self) -> bool:
+        """True iff verdict is FAIL."""
+        return self.verdict == EvaluationVerdict.FAIL
+
+    @property
+    def inconclusive(self) -> bool:
+        """True iff verdict is INCONCLUSIVE."""
+        return self.verdict == EvaluationVerdict.INCONCLUSIVE
+
+    @property
+    def fail_findings(self) -> list[EvaluationFinding]:
+        """All findings with FAIL verdict."""
+        return [f for f in self.findings if f.verdict == EvaluationVerdict.FAIL]
+
+    @property
+    def was_evaluated(self) -> bool:
+        """True iff the evaluator actually ran (execution was not a failure)."""
+        return self.evaluation_status == EvaluationStatus.EVALUATED
+
+
+class ChallengePackEvaluationResult(BaseModel):
+    """
+    Top-level aggregate result for evaluating a complete ChallengePack execution.
+
+    Input: ExecutionRun + ChallengePack + persisted Traces
+    Output: ChallengePackEvaluationResult
+
+    Critical distinction tracked here:
+        execution_failures: sandbox/infra failures (NOT agent reliability failures)
+        evaluation_failures: evaluator errors (should be zero in production)
+        passed/failed/inconclusive: agent behavior verdicts only
+    """
+
+    pack_id: str = Field(description="The ChallengePack that was evaluated.")
+    run_id: str = Field(description="Unique identifier for this evaluation run.")
+    agent_id: str = Field(description="The agent that was evaluated.")
+
+    scenario_results: list[ScenarioEvaluationResult] = Field(
+        default_factory=list,
+        description="Per-scenario results in scenario order.",
+    )
+
+    # Aggregate counts
+    total_scenarios: int = Field(description="Total number of scenarios attempted.")
+    passed: int = Field(description="Scenarios where agent behavior was PASS.")
+    failed: int = Field(description="Scenarios where agent behavior was FAIL.")
+    inconclusive: int = Field(description="Scenarios where evidence was insufficient.")
+    execution_failures: int = Field(
+        default=0,
+        description="Scenarios not evaluated due to sandbox/execution failures (TIMEOUT/ERROR).",
+    )
+    evaluation_failures: int = Field(
+        default=0,
+        description="Scenarios where the evaluator itself raised an error.",
+    )
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def evaluated_count(self) -> int:
+        """Scenarios that were actually evaluated (excludes execution/evaluator failures)."""
+        return self.passed + self.failed + self.inconclusive
+
+    @property
+    def pass_rate(self) -> float:
+        """Pass rate over evaluated scenarios. 0.0 if none were evaluated."""
+        if self.evaluated_count == 0:
+            return 0.0
+        return self.passed / self.evaluated_count
+
