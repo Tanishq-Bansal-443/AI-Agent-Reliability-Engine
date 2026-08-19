@@ -73,6 +73,8 @@ from packages.core.models.adaptive import (
     AdaptivePriority,
     AdaptiveRecommendation,
     AdaptiveTestPlan,
+    AdaptiveScenarioAllocation,
+    AdaptivePackMetadata,
 )
 
 
@@ -138,5 +140,7 @@ __all__ = [
     "AdaptivePriority",
     "AdaptiveRecommendation",
     "AdaptiveTestPlan",
+    "AdaptiveScenarioAllocation",
+    "AdaptivePackMetadata",
 ]
 

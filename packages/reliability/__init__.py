@@ -13,6 +13,7 @@ from packages.core.models.reliability import (
     ReliabilityAssessment,
 )
 from packages.reliability.scorer import ReliabilityScorer
+from packages.reliability.closed_loop import ReliabilityClosedLoop
 
 __all__ = [
     "RegressionTest",
@@ -20,4 +21,5 @@ __all__ = [
     "ReliabilityFinding",
     "ReliabilityAssessment",
     "ReliabilityScorer",
+    "ReliabilityClosedLoop",
 ]

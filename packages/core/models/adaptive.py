@@ -106,3 +106,50 @@ class AdaptiveTestPlan(BaseModel):
         default_factory=dict,
         description="Arbitrary execution metadata.",
     )
+
+
+class AdaptiveScenarioAllocation(BaseModel):
+    """
+    Represents the number of scenarios requested for one strategy.
+    """
+
+    strategy_id: str = Field(description="The unique identifier of the attack strategy.")
+    requested_count: int = Field(description="The number of scenarios requested for this strategy.")
+    priority_score: float = Field(description="The priority score computed for the strategy.")
+    reason: str = Field(description="The reasoning or justification for this allocation.")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Optional additional context.",
+    )
+
+
+class AdaptivePackMetadata(BaseModel):
+    """
+    Represents provenance of an adaptively generated challenge pack.
+    """
+
+    source_run_id: str | None = Field(
+        default=None,
+        description="The source run ID that initiated this adaptive generation flow.",
+    )
+    prior_run_id: str | None = Field(
+        default=None,
+        description="The baseline/prior run ID compared against during planning.",
+    )
+    source_assessment_id: str | None = Field(
+        default=None,
+        description="The source reliability assessment ID.",
+    )
+    adaptive_plan_hash: str = Field(description="A stable SHA-256 hash of the adaptive test plan.")
+    strategy_allocations: list[AdaptiveScenarioAllocation] = Field(
+        default_factory=list,
+        description="List of allocations made for each strategy.",
+    )
+    coverage_gaps_addressed: list[str] = Field(
+        default_factory=list,
+        description="List of coverage gap IDs that this challenge pack addresses.",
+    )
+    generation_metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arbitrary generation metadata.",
+    )

@@ -368,3 +368,242 @@ class ChallengePackBuilder:
         for surface in sorted(profiled_surfaces):
             coverage_map[surface] = surface in covered_surfaces
         return coverage_map
+
+
+from packages.core.models.adaptive import (
+    AdaptiveTestPlan,
+    AdaptiveScenarioAllocation,
+    AdaptivePackMetadata,
+)
+
+
+class AdaptiveChallengePackBuilder:
+    """
+    Builds a ChallengePack from an AdaptiveTestPlan by generating, validating,
+    and deduplicating scenarios according to strategy allocations and budget limits.
+    """
+
+    def __init__(
+        self,
+        generator: BaseScenarioGenerator | None = None,
+    ) -> None:
+        self.generator = generator or DeterministicScenarioGenerator()
+
+    async def build(
+        self,
+        agent: Agent,
+        risk_profile: RiskProfile,
+        adaptive_plan: AdaptiveTestPlan,
+    ) -> ChallengePack:
+        """
+        Builds the ChallengePack using the strategies and budgets allocated in the AdaptiveTestPlan.
+        """
+        # 1. Validate that the plan belongs to the same agent
+        if agent.id != adaptive_plan.agent_id:
+            raise ValueError(
+                f"Agent mismatch: Plan is for agent '{adaptive_plan.agent_id}', but builder was given '{agent.id}'."
+            )
+
+        budget = adaptive_plan.budget
+
+        # 2. Extract strategy allocations from plan
+        allocations: dict[str, int] = {}
+        priority_map: dict[str, AdaptivePriority] = {}
+        for prio in adaptive_plan.strategy_priorities:
+            priority_map[prio.strategy_id] = prio
+            allocations[prio.strategy_id] = prio.recommended_scenario_count
+
+        sorted_strategy_ids = sorted(allocations.keys())
+
+        valid_scenarios_by_strategy: dict[str, list[Scenario]] = {}
+        seen_hashes: set[str] = set()
+        invalid_scenarios_info: list[dict[str, Any]] = []
+        duplicate_count = 0
+        total_generated_count = 0
+        exclusions: list[dict[str, Any]] = []
+
+        cb = ChallengePackBuilder()
+
+        # 3. Generate scenarios for each allocated strategy
+        for strategy_id in sorted_strategy_ids:
+            requested_count = allocations[strategy_id]
+            if requested_count <= 0:
+                continue
+
+            strategy = AttackStrategyRegistry.get_strategy(strategy_id)
+            if not strategy:
+                exclusions.append({
+                    "strategy_id": strategy_id,
+                    "reason": "unknown_strategy_id",
+                })
+                continue
+
+            try:
+                scenarios = await self.generator.generate(agent, risk_profile, strategy)
+            except Exception as e:
+                exclusions.append({
+                    "strategy_id": strategy_id,
+                    "reason": f"generation_failed: {str(e)}",
+                })
+                continue
+
+            if not scenarios:
+                exclusions.append({
+                    "strategy_id": strategy_id,
+                    "reason": "no_applicable_surface_or_tool",
+                })
+                continue
+
+            total_generated_count += len(scenarios)
+
+            valid_for_strategy = []
+            for sc in scenarios:
+                try:
+                    validate_scenario(sc, agent)
+                except ValueError as err:
+                    invalid_scenarios_info.append({
+                        "scenario_id": sc.id,
+                        "name": sc.name,
+                        "strategy_id": strategy_id,
+                        "error": str(err),
+                    })
+                    continue
+
+                # Deduplicate by scenario ID: if the same scenario object is
+                # returned multiple times by a generator, skip it. We do NOT
+                # use content hashing here because the adaptive builder
+                # may intentionally receive structurally similar but
+                # semantically distinct scenarios with different IDs.
+                if sc.id in seen_hashes:
+                    duplicate_count += 1
+                    continue
+                seen_hashes.add(sc.id)
+                valid_for_strategy.append(sc)
+
+            # Sort scenarios by ID to guarantee deterministic selection
+            valid_for_strategy = sorted(valid_for_strategy, key=lambda s: s.id)
+
+            valid_scenarios_by_strategy[strategy_id] = valid_for_strategy[:requested_count]
+
+        # 4. Enforce adaptive budget limits using deterministic alphabetical round-robin
+        selected_scenarios: list[Scenario] = []
+        strategy_ids_with_sc = sorted(valid_scenarios_by_strategy.keys())
+        working_lists = {sid: list(lst) for sid, lst in valid_scenarios_by_strategy.items()}
+
+        while len(selected_scenarios) < budget:
+            added_any = False
+            for sid in strategy_ids_with_sc:
+                if len(selected_scenarios) >= budget:
+                    break
+                if working_lists[sid]:
+                    selected_scenarios.append(working_lists[sid].pop(0))
+                    added_any = True
+            if not added_any:
+                break
+
+        # Sort the final selected scenarios deterministically to guarantee stable order
+        final_scenarios = sorted(
+            selected_scenarios,
+            key=lambda sc: (sc.attack_type.value if sc.attack_type else "", sc.id),
+        )
+
+        # 5. Compute final coverage using normal builder's helper logic
+        strategy_coverage = cb._calculate_strategy_coverage(AttackStrategyRegistry.list_strategies(), final_scenarios)
+        risk_coverage = cb._calculate_risk_coverage(risk_profile, final_scenarios, agent)
+        attack_surface_coverage = cb._calculate_attack_surface_coverage(risk_profile, final_scenarios, agent)
+
+        # 6. Coverage Preservation Gap Checks
+        addressed_gaps = []
+        unaddressed_gaps = []
+        for gap in adaptive_plan.coverage_gaps:
+            addressed = False
+            if gap.startswith("strategy_gap:"):
+                strat_id = gap.split(":", 1)[1]
+                addressed = any(sc.attack_type and sc.attack_type.value == strat_id for sc in final_scenarios)
+            elif gap.startswith("attack_surface_gap:"):
+                surf = gap.split(":", 1)[1]
+                addressed = attack_surface_coverage.get(surf, False)
+            elif gap.startswith("risk_gap:"):
+                risk = gap.split(":", 1)[1]
+                addressed = risk_coverage.get(risk, False)
+            elif gap.startswith("regression_gap:"):
+                strat_id = gap.split(":", 1)[1]
+                count = sum(1 for sc in final_scenarios if sc.attack_type and sc.attack_type.value == strat_id)
+                addressed = count >= 2
+
+            if addressed:
+                addressed_gaps.append(gap)
+            else:
+                unaddressed_gaps.append(gap)
+
+        # 7. Record adaptive provenance metadata
+        plan_hash = self._compute_plan_hash(adaptive_plan)
+        strategy_allocations = []
+        for prio in adaptive_plan.strategy_priorities:
+            strategy_allocations.append(AdaptiveScenarioAllocation(
+                strategy_id=prio.strategy_id,
+                requested_count=prio.recommended_scenario_count,
+                priority_score=prio.priority_score,
+                reason=prio.reason,
+                metadata=prio.metadata,
+            ))
+
+        pack_metadata = AdaptivePackMetadata(
+            source_run_id=adaptive_plan.source_run_id,
+            prior_run_id=adaptive_plan.prior_run_id,
+            source_assessment_id=adaptive_plan.source_run_id,
+            adaptive_plan_hash=plan_hash,
+            strategy_allocations=strategy_allocations,
+            coverage_gaps_addressed=addressed_gaps,
+            generation_metadata={
+                "total_generated": total_generated_count,
+                "valid_count": len(final_scenarios),
+                "invalid_count": len(invalid_scenarios_info),
+                "duplicate_count": duplicate_count,
+                "exclusions": exclusions,
+                "invalid_exclusions": invalid_scenarios_info,
+            }
+        )
+
+        metadata = {
+            "adaptive": pack_metadata.model_dump(),
+        }
+        metadata["adaptive"]["coverage_gaps"] = adaptive_plan.coverage_gaps
+        metadata["adaptive"]["addressed_gaps"] = addressed_gaps
+        metadata["adaptive"]["unaddressed_gaps"] = unaddressed_gaps
+
+        # 8. Deterministic Pack Identity
+        scenario_ids = [sc.id for sc in final_scenarios]
+        inputs = [
+            agent.id,
+            agent.version or "none",
+            plan_hash,
+            ",".join(sorted(scenario_ids)),
+        ]
+        hash_input = ":".join(inputs).encode("utf-8")
+        pack_id = hashlib.sha256(hash_input).hexdigest()
+
+        # 9. Assemble and return compatible ChallengePack
+        pack = ChallengePack(
+            id=pack_id,
+            name=f"Adaptive Challenge Pack for {agent.name}",
+            description=f"Adaptive adversarial test suite targeting agent {agent.id} (version {agent.version})",
+            agent_id=agent.id,
+            agent_version=agent.version,
+            scenarios=final_scenarios,
+            version="1.0.0",
+            metadata=metadata,
+            strategy_coverage=strategy_coverage,
+            risk_coverage=risk_coverage,
+            attack_surface_coverage=attack_surface_coverage,
+        )
+
+        return pack
+
+    def _compute_plan_hash(self, plan: AdaptiveTestPlan) -> str:
+        """
+        Compute a SHA-256 hash representing the stable content of the AdaptiveTestPlan.
+        """
+        plan_dict = plan.model_dump()
+        plan_json = json.dumps(plan_dict, sort_keys=True)
+        return hashlib.sha256(plan_json.encode("utf-8")).hexdigest()

@@ -358,3 +358,29 @@ to None for Phase 4A backward compatibility):
 
 
 
+---
+
+## ADR-022: Closed-Loop Adaptive Challenge Generation
+
+**Decision**: Implement a `ReliabilityClosedLoop` orchestrator that connects the regression and adaptive planning layers to produce the next `ChallengePack` from historical evaluation data, without executing the pack itself.
+
+### Architectural Principles
+
+- **Adaptive Planning is Separated from Scenario Generation**: The `AdaptiveChallengePackBuilder` decides *how many* scenarios to generate per strategy (the allocation), but delegates the actual scenario construction entirely to the existing `DeterministicScenarioGenerator`. This separation ensures that no new scenario taxonomy, template system, or tool classifier is duplicated in the adaptive layer.
+
+- **Adaptive Builder Reuses All Existing Scenario Infrastructure**: `AdaptiveChallengePackBuilder` reuses `AttackStrategyRegistry`, `DeterministicScenarioGenerator`, and `validate_scenario` without reimplementing them. The adaptive layer is strictly an allocation and orchestration layer around the existing generation stack.
+
+- **Closed Loop Produces Artifacts, Not Executions**: `ReliabilityClosedLoop.plan_next_test_pack` returns `(AdaptiveTestPlan, ChallengePack)` — both are planning artifacts. The method does not invoke agents, run sandboxes, or evaluate any scenarios. Downstream systems (the existing `ExecutionRunner` and evaluation engine) remain fully responsible for execution and evaluation of the returned pack.
+
+- **Provenance Connects Successive Reliability Runs**: Each `ChallengePack` produced by the adaptive builder carries a `metadata["adaptive"]` block that preserves `source_run_id`, `prior_run_id`, `adaptive_plan_hash`, `strategy_allocations`, `coverage_gaps`, `addressed_gaps`, and `unaddressed_gaps`. This allows any future evaluation run to trace exactly which adaptive plan produced its input scenario set, supporting auditing and reproducibility across the full pipeline.
+
+- **Adaptive Pack Identity is Deterministic**: The pack ID is derived from a SHA-256 hash of `agent.id`, `agent.version`, the adaptive plan hash, and the sorted final scenario IDs. No `uuid4` or timestamp is used. Two identical adaptive plans against identical agent definitions must produce the same `ChallengePack.id`.
+
+- **Coverage Gaps are Measured Against the Final Generated Pack**: A gap is only marked as `addressed` if the final `ChallengePack` actually contains a scenario that covers it — not merely because a strategy was selected or scheduled. This prevents false confidence from allocation bookkeeping.
+
+- **Deduplication in the Adaptive Builder Uses Scenario Identity**: `AdaptiveChallengePackBuilder` deduplicates by `scenario.id` (not content hash). The adaptive builder receives intentionally distinct scenarios that may have structurally identical content but different IDs. Content-hash deduplication would incorrectly suppress them. Same-object-returned-twice duplicates (from misbehaving generators) are still caught since they share the same ID.
+
+- **Automatic Infinite Feedback Loops are Intentionally Excluded**: `ReliabilityClosedLoop` implements one planning step in the loop: from a completed `ReliabilityAssessment` to the next `ChallengePack`. It does not schedule runs, monitor results, or trigger continuous execution. Scheduling and loop control belong to external orchestration systems (e.g., CI/CD pipelines or a future scheduler phase), not the core reliability engine.
+
+**Status**: Accepted
+
