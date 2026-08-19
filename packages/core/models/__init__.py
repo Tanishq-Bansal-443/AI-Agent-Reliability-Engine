@@ -60,6 +60,8 @@ from packages.core.models.evaluation import (
 from packages.core.models.reliability import (
     RegressionTest,
     ReliabilityScore,
+    ReliabilityFinding,
+    ReliabilityAssessment,
 )
 
 __all__ = [
@@ -113,4 +115,6 @@ __all__ = [
     # reliability
     "RegressionTest",
     "ReliabilityScore",
+    "ReliabilityFinding",
+    "ReliabilityAssessment",
 ]

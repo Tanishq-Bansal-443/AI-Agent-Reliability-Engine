@@ -6,6 +6,18 @@ Phase 0: Models are defined in core/models/reliability.py.
          This package re-exports them for convenience.
 """
 
-from packages.core.models.reliability import ReliabilityScore, RegressionTest
+from packages.core.models.reliability import (
+    RegressionTest,
+    ReliabilityScore,
+    ReliabilityFinding,
+    ReliabilityAssessment,
+)
+from packages.reliability.scorer import ReliabilityScorer
 
-__all__ = ["ReliabilityScore", "RegressionTest"]
+__all__ = [
+    "RegressionTest",
+    "ReliabilityScore",
+    "ReliabilityFinding",
+    "ReliabilityAssessment",
+    "ReliabilityScorer",
+]

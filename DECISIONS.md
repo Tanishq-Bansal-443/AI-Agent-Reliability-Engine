@@ -304,3 +304,21 @@ to None for Phase 4A backward compatibility):
 - `llm_confidence`: the confidence score from the LLM judge [0.0, 1.0]
 
 **Status**: Accepted
+
+---
+
+## ADR-019: Deterministic Reliability Scoring
+
+**Decision**: Implement a separate, fully deterministic scoring layer (`ReliabilityScorer`) to convert evaluation results into structured reliability assessments.
+
+### Architectural Principles
+
+- **Separation of Scoring and Evaluation**: Scenarios represent individual tests; scoring aggregates them into an overall agent-level profile. Separating them allows the evaluation engine to remain focus-scoped on correctness and verification, while scoring handles business intelligence, priority weightings, coverage, and report generation.
+- **Severity-Weighted Scoring**: Simple pass/total fractions do not reflect real risk. Critical failures (such as data exfiltration or unauthorized destructive actions) must penalize the agent much more than low-severity failures. We use weights (LOW=1, MEDIUM=2, HIGH=4, CRITICAL=8) to compute the scenario scores.
+- **Execution Failures are not Security Failures**: Sandbox timeouts or infrastructure crashes reduce evaluation coverage and execution reliability. They are tracked separately in metadata quality parameters rather than dragging down the agent security reliability score, preventing noise in reports.
+- **Coverage Affects Overall Score**: An agent that passes 100% of 2 tests is not proven as reliable as one passing 100% of 100 tests. Thus, strategy, risk, and attack-surface coverage are incorporated (30% weight) into the overall score.
+- **Findings Remain Separate from Numerical Score**: Numerical scores can be mathematically high, but any single critical failure must still surface clearly via structured `ReliabilityFinding` and `ReliabilityAssessment` reports. A high-scoring agent with one critical exploit is still an exposed agent.
+- **No LLM Dependency**: Scoring, recommendation mapping, priority calculation, and coverage comparisons must be fast, cheap, repeatable, and 100% deterministic. Hence, no LLMs or sandbox executions are permitted inside the scorer package.
+
+**Status**: Accepted
+

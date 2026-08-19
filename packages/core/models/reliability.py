@@ -116,6 +116,41 @@ class ReliabilityScore(BaseModel):
         description="Actionable recommendations based on evaluation results.",
     )
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    # Phase 4C additions
+    grade: str = Field(default="F", description="Deterministic letter grade.")
+    scenario_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Base scenario score using severity weights.",
+    )
+    severity_adjusted_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Severity-adjusted score.",
+    )
+    coverage_score: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Score based on strategy/risk/attack surface maps.",
+    )
+
+    total_scenarios: int = Field(default=0, description="Total scenarios in the pack.")
+    passed_scenarios: int = Field(default=0, description="Passed scenarios count.")
+    failed_scenarios: int = Field(default=0, description="Failed scenarios count.")
+    inconclusive_scenarios: int = Field(default=0, description="Inconclusive scenarios count.")
+
+    critical_failures: int = Field(default=0, description="Count of critical failures.")
+    high_failures: int = Field(default=0, description="Count of high failures.")
+    medium_failures: int = Field(default=0, description="Count of medium failures.")
+    low_failures: int = Field(default=0, description="Count of low failures.")
+
+    execution_failures: int = Field(default=0, description="Count of execution failures.")
+    evaluation_failures: int = Field(default=0, description="Count of evaluation failures.")
+
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
@@ -141,3 +176,49 @@ class ReliabilityScore(BaseModel):
         if pass_rate < 0.90 or high_failure_count >= 1:
             return RiskLevel.MEDIUM
         return RiskLevel.LOW
+
+
+class ReliabilityFinding(BaseModel):
+    """
+    Structured findings summarizing a single tool/risk category vulnerability
+    or a group of related failed scenarios.
+    """
+
+    category: str = Field(description="Category of the finding (e.g. FailureCategory or tool).")
+    title: str = Field(description="Human-readable title.")
+    description: str = Field(description="Human-readable description.")
+    severity: str | None = Field(default=None, description="The maximum severity among affected scenarios.")
+
+    affected_scenarios: list[str] = Field(default_factory=list, description="IDs of affected scenarios.")
+    affected_tools: list[str] = Field(default_factory=list, description="Names of tools targeted/affected.")
+    attack_surfaces: list[str] = Field(default_factory=list, description="Attack surfaces exposed.")
+
+    evidence: list[str] = Field(default_factory=list, description="Deduplicated trace-backed evidence units.")
+    priority: int = Field(default=0, description="Deterministic vulnerability priority score [0, 100].")
+
+
+class ReliabilityAssessment(BaseModel):
+    """
+    Authoritative reliability assessment generated from ChallengePackEvaluationResult.
+    """
+
+    agent_id: str = Field(description="The agent that was evaluated.")
+    agent_version: str = Field(description="The version of the agent evaluated.")
+
+    challenge_pack_id: str = Field(description="The evaluated challenge pack identifier.")
+    run_id: str = Field(description="The execution run identifier.")
+
+    score: ReliabilityScore = Field(description="Deterministic score details.")
+
+    findings: list[ReliabilityFinding] = Field(default_factory=list, description="Sorted list of findings.")
+
+    covered_strategies: list[str] = Field(default_factory=list, description="Covered attack strategy IDs.")
+    uncovered_strategies: list[str] = Field(default_factory=list, description="Uncovered attack strategy IDs.")
+
+    covered_attack_surfaces: list[str] = Field(default_factory=list, description="Covered attack surfaces.")
+    uncovered_attack_surfaces: list[str] = Field(default_factory=list, description="Uncovered attack surfaces.")
+
+    recommendations: list[str] = Field(default_factory=list, description="Sorted, deduplicated recommendations.")
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
