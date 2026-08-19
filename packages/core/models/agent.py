@@ -198,6 +198,55 @@ class RiskSurface(BaseModel):
     )
 
 
+class ToolCapability(str, Enum):
+    """Taxonomy of tool capabilities and side effects."""
+
+    READ_ONLY = "read_only"
+    FINANCIAL = "financial"
+    DESTRUCTIVE = "destructive"
+    COMMUNICATION = "communication"
+    AUTHORIZATION = "authorization"
+    DATA_ACCESS = "data_access"
+
+
+class AttackSurfaceEvidence(BaseModel):
+    """Evidence of a prompt-level or configuration-level attack surface."""
+
+    attack_surface: str = Field(description="Name of the attack surface (e.g., 'authority_spoofing').")
+    reason: str = Field(description="Deterministic reason/evidence for identifying this attack surface.")
+
+    model_config = {"frozen": True}
+
+
+class RiskIndicator(BaseModel):
+    """An indicator of risk found in the agent configuration."""
+
+    name: str = Field(description="Name/type of the risk indicator (e.g., 'destructive_tools_present').")
+    severity: str = Field(description="Severity level of this risk: low, medium, high, critical.")
+    description: str = Field(description="Description of the risk.")
+    evidence: str = Field(description="Specific evidence for the risk identification.")
+
+    model_config = {"frozen": True}
+
+
+class RiskProfile(BaseModel):
+    """
+    The structured risk profile produced by the profiler.
+
+    Contains deterministic analysis of tools, capabilities,
+    system prompt, and security characteristics.
+    """
+
+    agent_id: str = Field(description="Agent being profiled.")
+    capabilities: list[Capability] = Field(default_factory=list, description="List of capabilities identified.")
+    attack_surfaces: list[AttackSurfaceEvidence] = Field(default_factory=list, description="Identified prompt/config attack surfaces with evidence.")
+    destructive_tools: list[str] = Field(default_factory=list, description="Names of tools identified as destructive.")
+    sensitive_tools: list[str] = Field(default_factory=list, description="Names of tools identified as sensitive.")
+    risk_indicators: list[RiskIndicator] = Field(default_factory=list, description="Detailed risk indicators detected.")
+    evidence: dict[str, str] = Field(default_factory=dict, description="Mapping of check names/categories to human-readable explanations.")
+    profiled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Timestamp when the risk profile was built.")
+
+
 class AgentProfile(BaseModel):
     """
     The structured profile produced by the profiler.
@@ -213,6 +262,7 @@ class AgentProfile(BaseModel):
     constraints: list[Constraint] = Field(default_factory=list)
     risk_surface: RiskSurface = Field(default_factory=RiskSurface)
     profiled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 
 
 class Message(BaseModel):

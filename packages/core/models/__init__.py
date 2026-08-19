@@ -17,6 +17,10 @@ from packages.core.models.agent import (
     AgentOutput,
     Message,
     ToolCallRecord,
+    ToolCapability,
+    AttackSurfaceEvidence,
+    RiskIndicator,
+    RiskProfile,
 )
 from packages.core.models.scenario import (
     AttackStrategy,
@@ -61,6 +65,10 @@ __all__ = [
     "AgentOutput",
     "Message",
     "ToolCallRecord",
+    "ToolCapability",
+    "AttackSurfaceEvidence",
+    "RiskIndicator",
+    "RiskProfile",
     # scenario
     "AttackStrategy",
     "ScenarioCategory",
