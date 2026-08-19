@@ -339,4 +339,22 @@ to None for Phase 4A backward compatibility):
 
 **Status**: Accepted
 
+---
+
+## ADR-021: Adaptive Regression Intelligence
+
+**Decision**: Implement a separate, fully deterministic adaptive regression intelligence layer (`AdaptiveRegressionAnalyzer`) to calculate attack strategy priorities, detect coverage gaps, distribute scenario budget, and generate actionable testing recommendations.
+
+### Architectural Principles
+
+- **Separation of Adaptive Planning and Regression Detection**: Regression analyzer identifies what *has* failed and how the agent changed relative to the baseline. The adaptive analyzer uses this historical intelligence to decide what *deserves* future testing effort. Separating them ensures each component has a single, cohesive responsibility.
+- **Deterministic Strategy Priorities**: Priorities must be calculated via a transparent, repeatable, and completely deterministic scoring formula. This ensures that identical input evaluations and reports consistently produce identical priority rankings and allocations, preventing planning jitter.
+- **Budget Breadth Preservation**: While high-priority/failing strategies should receive more budget, testing breadth must be preserved. The allocation algorithm uses a deterministic Largest Remainder Method (Hamilton method) to ensure every selected relevant strategy receives at least one scenario when budget permits, avoiding allocating the entire budget to a single strategy.
+- **Tool-Aware & Taxonomy Reuse**: The adaptive engine matches findings directly with existing registries (`AttackStrategyRegistry`, `ToolClassifier`) without duplicating the security taxonomy. This ensures that as new tools or strategies are added to the core system, the adaptive planner supports them automatically.
+- **Planner Does Not Execute Scenarios**: The adaptive test plan is strictly a planning artifact. It does not invoke agents, run sandboxes, or generate raw scenarios. Downstream systems (e.g., `ChallengePackBuilder`) remain responsible for the *how* (scenario generation), whereas the planner dictates the *what* (priority, coverage focus, and budget).
+- **Regression Gap Awareness**: Continuous verification is critical. Even when a failure is fixed, we must not cease testing it immediately. The planner checks for regression gaps (problematic strategies with fewer than 2 current test scenarios) to ensure historical regression risk is actively mitigated.
+
+**Status**: Accepted
+
+
 

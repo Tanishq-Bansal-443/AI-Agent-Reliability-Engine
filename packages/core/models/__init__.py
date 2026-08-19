@@ -69,6 +69,11 @@ from packages.core.models.regression import (
     RegressionFinding,
     RegressionReport,
 )
+from packages.core.models.adaptive import (
+    AdaptivePriority,
+    AdaptiveRecommendation,
+    AdaptiveTestPlan,
+)
 
 
 __all__ = [
@@ -129,5 +134,9 @@ __all__ = [
     "FailureChangeType",
     "RegressionFinding",
     "RegressionReport",
+    # adaptive
+    "AdaptivePriority",
+    "AdaptiveRecommendation",
+    "AdaptiveTestPlan",
 ]
 
