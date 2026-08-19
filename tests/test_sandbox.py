@@ -17,7 +17,7 @@ from packages.core.models.scenario import (
     RiskLevel,
     Scenario,
     ScenarioCategory,
-    AttackStrategy,
+    AttackStrategyType,
 )
 from packages.core.models.trace import ExecutionStatus, StepType
 from packages.sandbox.local_mock import LocalMockSandbox, FakeEnvironment

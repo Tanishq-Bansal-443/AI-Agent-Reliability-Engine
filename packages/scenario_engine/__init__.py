@@ -7,5 +7,6 @@ Phase 3: Full adversarial scenario generation.
 """
 
 from packages.scenario_engine.base import BaseScenarioGenerator
+from packages.scenario_engine.attack_strategy import AttackStrategyRegistry
 
-__all__ = ["BaseScenarioGenerator"]
+__all__ = ["BaseScenarioGenerator", "AttackStrategyRegistry"]

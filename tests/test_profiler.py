@@ -86,7 +86,7 @@ class TestDeterministicProfiler:
         )
         profile_urgency = await profiler.profile(agent_urgency)
         attack_surfaces_urgency = [s.attack_surface for s in profile_urgency.attack_surfaces]
-        assert "urgency" in attack_surfaces_urgency
+        assert "urgency_pressure" in attack_surfaces_urgency
 
     async def test_demo_agent_profiling(self) -> None:
         # 7. Demo-agent profiling
@@ -115,7 +115,7 @@ class TestDeterministicProfiler:
         # Prompt-level analysis should identify authority_spoofing and urgency
         attack_surfaces = [s.attack_surface for s in profile.attack_surfaces]
         assert "authority_spoofing" in attack_surfaces
-        assert "urgency" in attack_surfaces
+        assert "urgency_pressure" in attack_surfaces
 
     async def test_empty_minimal_agent(self) -> None:
         # 8. Empty/minimal agent

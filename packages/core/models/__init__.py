@@ -24,6 +24,7 @@ from packages.core.models.agent import (
 )
 from packages.core.models.scenario import (
     AttackStrategy,
+    AttackStrategyType,
     ScenarioCategory,
     RiskLevel,
     Risk,
@@ -71,6 +72,7 @@ __all__ = [
     "RiskProfile",
     # scenario
     "AttackStrategy",
+    "AttackStrategyType",
     "ScenarioCategory",
     "RiskLevel",
     "Risk",

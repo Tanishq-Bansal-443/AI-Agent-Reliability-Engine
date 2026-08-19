@@ -72,7 +72,7 @@ class DemoAgentAdapter(BaseAgentAdapter):
     def _build_profile_from_risk(self, risk_profile: RiskProfile) -> AgentProfile:
         """Compose and translate RiskProfile into AgentProfile for compatibility."""
         from packages.core.models.agent import AgentProfile, Constraint, RiskSurface
-        from packages.core.models.scenario import AttackStrategy
+        from packages.core.models.scenario import AttackStrategyType
         
         agent = self.get_agent()
         
@@ -95,10 +95,10 @@ class DemoAgentAdapter(BaseAgentAdapter):
 
         # Build attack families list for backwards compatibility
         attack_families = [surf.attack_surface for surf in risk_profile.attack_surfaces]
-        if risk_profile.destructive_tools and AttackStrategy.PROMPT_INJECTION.value not in attack_families:
-            attack_families.append(AttackStrategy.PROMPT_INJECTION.value)
-        if risk_profile.sensitive_tools and AttackStrategy.SOCIAL_ENGINEERING.value not in attack_families:
-            attack_families.append(AttackStrategy.SOCIAL_ENGINEERING.value)
+        if risk_profile.destructive_tools and AttackStrategyType.PROMPT_INJECTION.value not in attack_families:
+            attack_families.append(AttackStrategyType.PROMPT_INJECTION.value)
+        if risk_profile.sensitive_tools and AttackStrategyType.DATA_EXFILTRATION.value not in attack_families:
+            attack_families.append(AttackStrategyType.DATA_EXFILTRATION.value)
 
         risk_surface = RiskSurface(
             tools=[t.name for t in agent.tools],

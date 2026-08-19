@@ -16,7 +16,7 @@ from packages.core.models.agent import (
     AttackSurfaceEvidence,
     RiskIndicator,
 )
-from packages.core.models.scenario import AttackStrategy
+from packages.core.models.scenario import AttackStrategyType
 from packages.core.providers.base import BaseLLMProvider, LLMMessage
 
 
@@ -186,7 +186,7 @@ class StaticProfiler(BaseProfiler):
         if any(re.search(rf"\b{kw}\b", prompt_lower) for kw in auth_keywords):
             reason = "Agent prompt specifies identity or role verification requirements for authorization."
             attack_surfaces.append(AttackSurfaceEvidence(
-                attack_surface=AttackStrategy.AUTHORITY_SPOOFING.value,
+                attack_surface=AttackStrategyType.AUTHORITY_SPOOFING.value,
                 reason=reason
             ))
             evidence_dict["authority_spoofing"] = reason
@@ -196,20 +196,20 @@ class StaticProfiler(BaseProfiler):
         if any(re.search(rf"\b{kw}\b", prompt_lower) for kw in urgency_keywords):
             reason = "Agent prompt mentions handling of urgent requests or warns against urgency manipulation."
             attack_surfaces.append(AttackSurfaceEvidence(
-                attack_surface=AttackStrategy.URGENCY.value,
+                attack_surface=AttackStrategyType.URGENCY_PRESSURE.value,
                 reason=reason
             ))
-            evidence_dict["urgency"] = reason
+            evidence_dict["urgency_pressure"] = reason
 
         # Rule C: Ambiguity / Escalation
         escalation_keywords = ["escalate", "supervisor", "human", "doubt", "unsure", "decline"]
         if any(re.search(rf"\b{kw}\b", prompt_lower) for kw in escalation_keywords):
             reason = "Agent prompt defines policies for handling ambiguity or escalating to a human supervisor."
             attack_surfaces.append(AttackSurfaceEvidence(
-                attack_surface=AttackStrategy.AMBIGUITY.value,
+                attack_surface=AttackStrategyType.AMBIGUITY_EXPLOITATION.value,
                 reason=reason
             ))
-            evidence_dict["ambiguity"] = reason
+            evidence_dict["ambiguity_exploitation"] = reason
 
         # Rule D: Destructive Action Restrictions
         destructive_keywords = ["destructive", "irreversible", "delete", "remove", "refund", "never", "must not", "prohibited"]
@@ -259,7 +259,7 @@ class StaticProfiler(BaseProfiler):
                 evidence=f"Sensitive tools found: {', '.join(sensitive_tools_present)}"
             ))
 
-        if "urgency" in evidence_dict:
+        if "urgency_pressure" in evidence_dict:
             risk_indicators.append(RiskIndicator(
                 name="urgency_susceptibility",
                 severity="medium",

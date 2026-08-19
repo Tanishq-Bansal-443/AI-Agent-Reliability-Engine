@@ -15,21 +15,31 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 
-class AttackStrategy(str, Enum):
+class AttackStrategyType(str, Enum):
     """
-    Known attack strategies used to generate adversarial scenarios.
-
-    Each strategy represents a class of manipulation technique.
+    Known attack strategy types used to generate adversarial scenarios.
     """
 
     AUTHORITY_SPOOFING = "authority_spoofing"
-    URGENCY = "urgency"
-    AMBIGUITY = "ambiguity"
+    URGENCY_PRESSURE = "urgency_pressure"
+    AUTHORIZATION_BYPASS = "authorization_bypass"
+    CONFIRMATION_BYPASS = "confirmation_bypass"
+    PRIVILEGE_ESCALATION = "privilege_escalation"
     PROMPT_INJECTION = "prompt_injection"
-    CONFLICTING_INSTRUCTION = "conflicting_instruction"
+    INSTRUCTION_CONFLICT = "instruction_conflict"
+    AMBIGUITY_EXPLOITATION = "ambiguity_exploitation"
+    TOOL_MISUSE = "tool_misuse"
+    DATA_EXFILTRATION = "data_exfiltration"
     MULTI_TURN_MANIPULATION = "multi_turn_manipulation"
-    SOCIAL_ENGINEERING = "social_engineering"
-    GOAL_HIJACKING = "goal_hijacking"
+
+
+class RiskLevel(str, Enum):
+    """Risk severity levels, ordered from lowest to highest."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
 class ScenarioCategory(str, Enum):
@@ -45,13 +55,19 @@ class ScenarioCategory(str, Enum):
     GOAL_DRIFT = "goal_drift"
 
 
-class RiskLevel(str, Enum):
-    """Risk severity levels, ordered from lowest to highest."""
+class AttackStrategy(BaseModel):
+    """
+    Detailed model representing an attack strategy definition in the library.
+    """
 
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+    id: str = Field(description="Unique strategy identifier (matching AttackStrategyType).")
+    name: str = Field(description="Short human-readable name of the strategy.")
+    description: str = Field(description="Full strategy description.")
+    target_risks: list[str] = Field(default_factory=list, description="Targeted risks (e.g. tool classes, policies).")
+    target_attack_surfaces: list[str] = Field(default_factory=list, description="Targeted attack surfaces.")
+    generation_guidance: str = Field(description="Guidance on how to generate scenarios using this strategy.")
+    expected_failure_modes: list[str] = Field(default_factory=list, description="Expected failure modes when strategy succeeds.")
+    default_severity: RiskLevel = Field(default=RiskLevel.MEDIUM, description="Default severity if scenario fails.")
 
 
 class Risk(BaseModel):
@@ -60,7 +76,7 @@ class Risk(BaseModel):
     target: str = Field(description="What is at risk: a tool name, capability, or policy.")
     risk_level: RiskLevel = Field(description="How severe this risk is.")
     description: str = Field(description="Human-readable risk description.")
-    attack_families: list[AttackStrategy] = Field(
+    attack_families: list[AttackStrategyType] = Field(
         default_factory=list,
         description="Attack strategies most likely to exploit this risk.",
     )
@@ -129,9 +145,9 @@ class Scenario(BaseModel):
     name: str = Field(description="Short human-readable name.")
     description: str = Field(description="Full scenario description.")
     category: ScenarioCategory = Field(description="Scenario category.")
-    attack_type: AttackStrategy | None = Field(
+    attack_type: AttackStrategyType | None = Field(
         default=None,
-        description="The attack strategy used, if this is an adversarial scenario.",
+        description="The attack strategy type used, if this is an adversarial scenario.",
     )
     target_risk: str | None = Field(
         default=None,
