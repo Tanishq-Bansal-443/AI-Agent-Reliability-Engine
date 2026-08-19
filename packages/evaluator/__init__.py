@@ -12,11 +12,16 @@ Phase 4A: Full deterministic evaluation engine:
     ClarificationValidator, ToolExecutionValidator
   - aggregate_verdicts: the single authoritative verdict aggregation function
 
-Phase 5 (future): LLMJudgeEvaluator, CompositeEvaluator
+Phase 4B: Semantic evaluation layer:
+  - LLMJudgeEvaluator: provider-agnostic semantic judge (BaseLLMProvider)
+  - CompositeEvaluator: merges deterministic + semantic via 5-case policy
+  - ChallengePackEvaluator now accepts optional llm_provider
 """
 
 from packages.evaluator.base import BaseEvaluator
+from packages.evaluator.composite import CompositeEvaluator
 from packages.evaluator.deterministic import DeterministicEvaluator
+from packages.evaluator.llm_judge import LLMJudgeEvaluator
 from packages.evaluator.pack_evaluator import ChallengePackEvaluator
 from packages.evaluator.validators import (
     AllowedToolValidator,
@@ -36,6 +41,9 @@ __all__ = [
     # Phase 4A evaluators
     "DeterministicEvaluator",
     "ChallengePackEvaluator",
+    # Phase 4B evaluators
+    "LLMJudgeEvaluator",
+    "CompositeEvaluator",
     # Validators
     "BaseValidator",
     "ForbiddenToolValidator",

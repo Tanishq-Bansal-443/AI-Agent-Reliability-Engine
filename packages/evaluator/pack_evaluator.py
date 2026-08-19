@@ -10,7 +10,13 @@ Critical invariants:
   agent behavior failures.
 - Evaluator errors are captured and counted separately (never masked as FAIL).
 - Scenario ordering in the output matches the input order exactly.
-- No LLM calls, no external APIs, no sandbox access.
+- No direct LLM calls, no external APIs, no sandbox access from this class.
+
+Phase 4B:
+- Accepts an optional BaseLLMProvider.  When provided, uses CompositeEvaluator
+  internally (deterministic + semantic).  When None, uses DeterministicEvaluator
+  only — identical to Phase 4A behaviour.
+- Per-scenario metadata records 'evaluation_source' for auditability.
 """
 
 from __future__ import annotations
@@ -25,6 +31,8 @@ from packages.core.models.evaluation import (
 )
 from packages.core.models.scenario import ChallengePack, Scenario
 from packages.core.models.trace import ExecutionStatus, Trace
+from packages.core.providers.base import BaseLLMProvider
+from packages.evaluator.composite import CompositeEvaluator
 from packages.evaluator.deterministic import DeterministicEvaluator
 
 
@@ -44,10 +52,24 @@ class ChallengePackEvaluator:
 
     The (Scenario, Trace) pairs must be pre-assembled by the caller.
     This evaluator does NOT load traces from disk or interact with the sandbox.
+
+    Phase 4B:
+        Pass llm_provider to enable composite (deterministic + semantic)
+        evaluation.  Omit it (or pass None) to get pure deterministic behaviour
+        — identical to Phase 4A.
     """
 
-    def __init__(self) -> None:
-        self._evaluator = DeterministicEvaluator()
+    def __init__(self, llm_provider: BaseLLMProvider | None = None) -> None:
+        if llm_provider is not None:
+            # Phase 4B: composite evaluation
+            self._evaluator: CompositeEvaluator | DeterministicEvaluator = (
+                CompositeEvaluator(llm_provider)
+            )
+            self._using_composite = True
+        else:
+            # Phase 4A: pure deterministic
+            self._evaluator = DeterministicEvaluator()
+            self._using_composite = False
 
     async def evaluate_pack(
         self,
@@ -108,6 +130,9 @@ class ChallengePackEvaluator:
             metadata={
                 "pack_name": pack.name,
                 "pack_version": pack.version,
+                "evaluation_mode": (
+                    "composite" if self._using_composite else "deterministic"
+                ),
             },
         )
 

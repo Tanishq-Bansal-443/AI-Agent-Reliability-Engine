@@ -12,6 +12,12 @@ Phase 4A adds:
 - ScenarioEvaluationResult: authoritative Phase 4A per-scenario result
 - ChallengePackEvaluationResult: top-level aggregate across all scenarios
 
+Phase 4B adds:
+- EvaluationSource: DETERMINISTIC | LLM | COMPOSITE provenance enum
+- LLMJudgeResult: validated structured output from the LLM semantic judge
+- ScenarioEvaluationResult provenance fields: source, deterministic_verdict,
+  llm_verdict, llm_confidence
+
 The existing EvaluationResult (score-based float) is preserved
 unchanged for backward compatibility.
 """
@@ -21,7 +27,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +171,24 @@ class EvaluationStatus(str, Enum):
     EVALUATION_ERROR = "EVALUATION_ERROR"  # evaluator itself raised an exception
 
 
+class EvaluationSource(str, Enum):
+    """
+    Provenance of the final verdict in a ScenarioEvaluationResult.
+
+    Phase 4B adds a semantic layer (LLM) on top of the deterministic layer.
+    This enum records which layer(s) contributed to the final verdict so that
+    consumers can distinguish pure deterministic results from composite ones.
+
+    DETERMINISTIC — only the DeterministicEvaluator ran (Phase 4A behaviour).
+    LLM           — only the LLMJudgeEvaluator ran (unusual; kept for clarity).
+    COMPOSITE     — both layers ran and were merged by CompositeEvaluator.
+    """
+
+    DETERMINISTIC = "deterministic"
+    LLM = "llm"
+    COMPOSITE = "composite"
+
+
 class EvidenceItem(BaseModel):
     """
     A single machine-readable piece of evidence backing a finding.
@@ -192,6 +216,47 @@ class EvidenceItem(BaseModel):
         default=True,
         description="Whether this evidence item references a real TraceEvent.",
     )
+
+
+class LLMJudgeResult(BaseModel):
+    """
+    Validated, structured output from the LLM semantic judge.
+
+    Produced by parsing + validating the raw JSON returned by the LLM provider.
+    Only instances of this model that pass Pydantic validation are used;
+    invalid LLM output is discarded and the system falls back to the
+    deterministic result.
+
+    Confidence is constrained to [0.0, 1.0].  Any value outside this range
+    causes the entire result to be treated as invalid and discarded.
+    """
+
+    verdict: EvaluationVerdict = Field(
+        description="The semantic verdict: PASS | FAIL | INCONCLUSIVE.",
+    )
+    confidence: float = Field(
+        description="Confidence score in the verdict, must be in [0.0, 1.0].",
+    )
+    reasoning: str = Field(
+        description="Human-readable reasoning from the LLM judge.",
+    )
+    findings: list[EvaluationFinding] = Field(
+        default_factory=list,
+        description="Per-aspect findings from the semantic evaluation.",
+    )
+    evidence: list[EvidenceItem] = Field(
+        default_factory=list,
+        description="Evidence items cited by the LLM judge.",
+    )
+
+    @field_validator("confidence")
+    @classmethod
+    def _validate_confidence(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError(
+                f"LLMJudgeResult.confidence must be in [0.0, 1.0], got {v}"
+            )
+        return v
 
 
 class EvaluationFinding(BaseModel):
@@ -269,6 +334,30 @@ class ScenarioEvaluationResult(BaseModel):
     # Preserve the execution status from the trace for audit purposes.
     execution_status: str = Field(
         description="ExecutionStatus from the trace (success | timeout | error | failure).",
+    )
+
+    # ---------------------------------------------------------------------------
+    # Phase 4B provenance fields — all optional, default None for backward compat
+    # ---------------------------------------------------------------------------
+
+    source: EvaluationSource | None = Field(
+        default=None,
+        description=(
+            "Which evaluation layer(s) produced this result. "
+            "None = legacy / pre-Phase-4B result."
+        ),
+    )
+    deterministic_verdict: EvaluationVerdict | None = Field(
+        default=None,
+        description="The verdict from the DeterministicEvaluator before LLM merging.",
+    )
+    llm_verdict: EvaluationVerdict | None = Field(
+        default=None,
+        description="The verdict returned by the LLM judge, if it ran.",
+    )
+    llm_confidence: float | None = Field(
+        default=None,
+        description="Confidence score from the LLM judge (0.0–1.0), if it ran.",
     )
 
     metadata: dict[str, Any] = Field(default_factory=dict)
