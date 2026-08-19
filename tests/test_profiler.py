@@ -355,3 +355,151 @@ class TestLLMProfiler:
         assert "delete_database" in user_message_content
         assert "pre_existing" in user_message_content
 
+
+from packages.profiler.orchestrator import AgentProfilerOrchestrator
+
+@pytest.mark.asyncio
+class TestAgentProfilerOrchestrator:
+    async def test_orchestrator_deterministic_only(self) -> None:
+        # 1. deterministic-only profiling (when llm_profiler is None)
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=None)
+        agent = Agent(
+            id="test-agent",
+            name="Test Agent",
+            system_prompt="Verify customer identity before any actions.",
+            tools=[],
+        )
+        profile = await orchestrator.profile_agent(agent)
+        assert profile.agent_id == "test-agent"
+        assert len(profile.attack_surfaces) == 1
+        assert profile.attack_surfaces[0].attack_surface == "authority_spoofing"
+        # Since LLM is None, the deterministic profile is returned directly (no prefixes)
+        assert "authority_spoofing" in profile.evidence
+        assert "deterministic:authority_spoofing" not in profile.evidence
+
+    async def test_orchestrator_with_fake_llm(self) -> None:
+        # 2. deterministic + fake LLM profiling
+        provider = MockLLMProvider(response_content=mock_json_response)
+        llm_profiler = LLMProfiler(provider)
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=llm_profiler)
+        agent = Agent(
+            id="test-agent",
+            name="Test Agent",
+            system_prompt="Verify customer identity.",
+            tools=[],
+        )
+        profile = await orchestrator.profile_agent(agent)
+        assert profile.agent_id == "test-agent"
+        
+        # Verify deterministic finding
+        assert any(s.attack_surface == "authority_spoofing" for s in profile.attack_surfaces)
+        # Verify LLM finding
+        assert any(s.attack_surface == "authorization_ambiguity" for s in profile.attack_surfaces)
+        
+        # Verify evidence merging
+        assert "deterministic:authority_spoofing" in profile.evidence
+        assert "llm:authorization_ambiguity" in profile.evidence
+        assert "llm:escalation_policy" in profile.evidence
+
+    async def test_orchestrator_llm_failure_fallback(self) -> None:
+        # 3. LLM failure fallback: when LLM fails or is not configured, fallback cleanly
+        provider = MockLLMProvider(should_fail=True)
+        llm_profiler = LLMProfiler(provider)
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=llm_profiler)
+        agent = Agent(
+            id="test-agent",
+            name="Test Agent",
+            system_prompt="Verify customer identity.",
+            tools=[],
+        )
+        profile = await orchestrator.profile_agent(agent)
+        assert profile.agent_id == "test-agent"
+        assert len(profile.attack_surfaces) == 1
+        assert profile.attack_surfaces[0].attack_surface == "authority_spoofing"
+        # Verify fallback returns deterministic profile directly (no prefixes)
+        assert "authority_spoofing" in profile.evidence
+        assert "deterministic:authority_spoofing" not in profile.evidence
+
+    async def test_orchestrator_duplicate_finding_merging(self) -> None:
+        # 4. duplicate finding merging: both identify authority_spoofing
+        duplicate_json = """
+        {
+          "capabilities": [],
+          "attack_surfaces": [
+            {
+              "attack_surface": "authority_spoofing",
+              "reason": "LLM reason for spoofing."
+            }
+          ],
+          "destructive_tools": [],
+          "sensitive_tools": [],
+          "risk_indicators": [],
+          "evidence": {
+            "authority_spoofing": "LLM evidence explanation."
+          }
+        }
+        """
+        provider = MockLLMProvider(response_content=duplicate_json)
+        llm_profiler = LLMProfiler(provider)
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=llm_profiler)
+        agent = Agent(
+            id="test-agent",
+            name="Test Agent",
+            system_prompt="Verify identity before any actions.",
+            tools=[],
+        )
+        profile = await orchestrator.profile_agent(agent)
+        
+        # Deduplication check: authority_spoofing is not returned twice
+        spoofer_surfs = [s for s in profile.attack_surfaces if s.attack_surface == "authority_spoofing"]
+        assert len(spoofer_surfs) == 1
+        
+        # Reason combination check
+        reason = spoofer_surfs[0].reason
+        assert "deterministic:" in reason
+        assert "llm:" in reason
+        
+        # Structural provenance check in evidence dict
+        assert "deterministic:authority_spoofing" in profile.evidence
+        assert "llm:authority_spoofing" in profile.evidence
+        assert profile.evidence["deterministic:authority_spoofing"] == "Agent prompt specifies identity or role verification requirements for authorization."
+        assert profile.evidence["llm:authority_spoofing"] == "LLM reason for spoofing."
+
+    async def test_orchestrator_demo_agent_profiling(self) -> None:
+        # 5. demo-agent profiling: verify refund_order, send_email, authority attack surface
+        adapter = DemoAgentAdapter()
+        agent = adapter.get_agent()
+        
+        # Profile without LLM
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=None)
+        profile = await orchestrator.profile_agent(agent)
+        
+        # refund_order should be in destructive and sensitive (via DATA_ACCESS category)
+        assert "refund_order" in profile.destructive_tools
+        assert "refund_order" in profile.sensitive_tools
+        
+        # send_email is communication
+        email_caps = [c for c in profile.capabilities if "send_email" in c.related_tools]
+        assert len(email_caps) >= 1
+        assert "communication" in email_caps[0].description.lower()
+        
+        # authority/authorization attack surface
+        attack_surfaces = [s.attack_surface for s in profile.attack_surfaces]
+        assert "authority_spoofing" in attack_surfaces
+
+    async def test_orchestrator_deterministic_repeatability(self) -> None:
+        # 6. deterministic repeatability: running the orchestrator twice produces identical results (excluding profiled_at)
+        adapter = DemoAgentAdapter()
+        agent = adapter.get_agent()
+        
+        orchestrator = AgentProfilerOrchestrator(llm_profiler=None)
+        profile1 = await orchestrator.profile_agent(agent)
+        profile2 = await orchestrator.profile_agent(agent)
+        
+        d1 = profile1.model_dump()
+        d2 = profile2.model_dump()
+        d1.pop("profiled_at", None)
+        d2.pop("profiled_at", None)
+        assert d1 == d2
+
+

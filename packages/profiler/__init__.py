@@ -7,5 +7,6 @@ Phase 2: Full implementation with deterministic + LLM-assisted profiling.
 """
 
 from packages.profiler.base import BaseProfiler, StaticProfiler, LLMProfiler
+from packages.profiler.orchestrator import AgentProfilerOrchestrator
 
-__all__ = ["BaseProfiler", "StaticProfiler", "LLMProfiler"]
+__all__ = ["BaseProfiler", "StaticProfiler", "LLMProfiler", "AgentProfilerOrchestrator"]
