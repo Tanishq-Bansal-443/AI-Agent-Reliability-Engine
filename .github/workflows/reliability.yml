@@ -1,0 +1,68 @@
+name: Reliability CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  reliability:
+    name: Reliability Assessment Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run Existing Test Suite
+        run: |
+          pytest
+
+      - name: Run Reliability Assessment & Gate
+        run: |
+          # 1. Check for baseline ID
+          BASELINE_ID=$(python -m packages.cli.main baseline get)
+          echo "Loaded baseline: $BASELINE_ID"
+
+          # 2. Execute assessment with or without previous baseline reference
+          if [ -z "$BASELINE_ID" ] || [ "$BASELINE_ID" = "None" ] || [ ! -f "data/assessments/${BASELINE_ID}.json" ]; then
+            echo "No valid baseline found. Running first assessment..."
+            python -m packages.cli.main assess --agent demo_customer_support --format markdown > reliability_report.md
+            
+            # Identify the new assessment ID
+            NEW_ID=$(python -m packages.cli.main list | tail -n 1)
+            echo "New assessment generated: $NEW_ID"
+            
+            # Set the new assessment as the baseline
+            python -m packages.cli.main baseline set "$NEW_ID"
+          else
+            echo "Evaluating current run against baseline: $BASELINE_ID"
+            python -m packages.cli.main assess \
+              --agent demo_customer_support \
+              --previous "$BASELINE_ID" \
+              --fail-on-regressed \
+              --fail-on-new-high-critical \
+              --format markdown > reliability_report.md
+          fi
+
+      - name: Upload Reliability Report & Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reliability-report-artifacts
+          path: |
+            reliability_report.md
+            data/
+            traces/

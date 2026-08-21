@@ -136,6 +136,161 @@ tests:
 
 ---
 
+## 🛠️ Operational CLI & CI/CD Automation
+
+The AI Agent Reliability Engine provides an operational command-line interface (CLI) to orchestrate assessments, compare runs, configure regression gates, and integrate with CI/CD systems deterministically and offline.
+
+### Installation & Environment Setup
+
+AARE runs on Python 3.10+. Install standard dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### CLI Commands
+
+Invoke the CLI via:
+
+```bash
+python -m packages.cli.main --help
+```
+
+Available commands:
+- `assess`: Run a complete reliability assessment.
+- `report`: Load a persisted assessment and generate a human-readable report.
+- `list` / `artifacts list`: List persisted assessments.
+- `show`: Display structured metadata for a persisted assessment.
+- `compare`: Compare two persisted assessments.
+- `baseline`: Subcommands (`set`, `get`, `clear`) to manage baseline assessments.
+- `artifacts`: Subcommands (`list`, `verify`) to inspect and check artifact integrity.
+- `watch`: Trigger a one-shot assess invocation against the stored baseline.
+
+---
+
+### Running an Assessment
+
+To run a reliability assessment:
+
+```bash
+python -m packages.cli.main assess --agent demo_customer_support --format markdown
+```
+
+**Options**:
+- `--agent <agent_id>`: Target agent identifier (e.g. `demo_customer_support`).
+- `--version <version>`: Override the agent version under evaluation.
+- `--max-scenarios <N>`: Limit the maximum scenarios generated/run.
+- `--timeout <seconds>`: Timeout in seconds per scenario execution.
+- `--fail-fast`: Fail fast on the first scenario sandbox execution failure.
+- `--no-persistence`: Disable intermediate artifact serialization.
+- `--output-dir <path>`: Directory for persisting evaluations, scores, and plans.
+- `--traces-dir <path>`: Directory for persisting execution traces.
+- `--format text|markdown|json`: Render format.
+- `--previous <assessment_id>`: Compare against a historical baseline.
+
+---
+
+### Generating Reports
+
+To generate a human-readable report from a persisted assessment:
+
+```bash
+python -m packages.cli.main report <assessment_id> --format markdown
+```
+
+---
+
+### Comparing Assessments
+
+To compare two assessments to find regressions:
+
+```bash
+python -m packages.cli.main compare <previous_id> <current_id>
+```
+
+---
+
+### Baseline Management
+
+Identify and persist baseline assessment IDs to reference in CI builds:
+
+```bash
+# Set baseline
+python -m packages.cli.main baseline set <assessment_id>
+
+# Get current baseline ID
+python -m packages.cli.main baseline get
+
+# Clear baseline ID
+python -m packages.cli.main baseline clear
+```
+
+---
+
+### Artifact Layout
+
+Persisted artifacts are structured under the output directory (default `data/` and `traces/`):
+- `data/assessments/<assessment_id>.json`: Top-level assessment artifact (includes SHA-256 integrity hash).
+- `data/challenge_packs/<pack_id>.json`: Challenge packs.
+- `data/runs/<run_id>.json`: Sandbox run results.
+- `data/evaluations/<run_id>.json`: Composite evaluation results.
+- `data/reliability/<assessment_id>.json`: Reliability scores & findings.
+- `data/regression/<assessment_id>.json`: Comparison report.
+- `data/adaptive/<assessment_id>.json`: Adaptive test plans.
+- `traces/<trace_id>.json`: Raw trajectory traces.
+
+Validate integrity of top-level assessments and resolve child references:
+
+```bash
+python -m packages.cli.main artifacts verify <assessment_id>
+```
+
+---
+
+### Exit Codes
+
+The CLI returns deterministic exit codes to notify orchestrators or fail CI workflows:
+- `0`: Successful assessment / no regression.
+- `1`: Reliability regression detected (violates policy).
+- `2`: Sandbox execution / infrastructure failure.
+- `3`: Evaluation / validation failure.
+- `4`: Invalid configuration / CLI usage.
+- `5`: Artifact not found / persistence error.
+
+---
+
+### CI/CD Integration
+
+To gate pull requests and track regressions continuously, add the following GitHub Actions job:
+
+```yaml
+name: Reliability CI
+on: [push, pull_request]
+
+jobs:
+  reliability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run reliability gate
+        run: |
+          BASELINE_ID=$(python -m packages.cli.main baseline get)
+          if [ "$BASELINE_ID" = "None" ] || [ -z "$BASELINE_ID" ]; then
+            python -m packages.cli.main assess --agent demo_customer_support --format markdown > report.md
+            NEW_ID=$(python -m packages.cli.main list | tail -n 1)
+            python -m packages.cli.main baseline set "$NEW_ID"
+          else
+            python -m packages.cli.main assess --agent demo_customer_support --previous "$BASELINE_ID" --fail-on-regressed
+          fi
+```
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
