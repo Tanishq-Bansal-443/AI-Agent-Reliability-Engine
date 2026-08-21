@@ -301,6 +301,71 @@ AARE enforces strict security, determinism, and persistence hardening:
 
 ---
 
+## 🖥️ Reliability Intelligence Dashboard (Next.js UI)
+
+AARE features a production-quality, read-only developer/security-focused intelligence web dashboard. The dashboard acts as a visual presentation and exploration layer over the persisted artifacts produced by AARE.
+
+### Key Visualizations
+
+- **Overview Dashboard (`/`)**: Displays overall scores, grades, pass rate charts, severity distribution graphs, coverage score cards (strategies, risks, attack surfaces), and priority recommendations.
+- **Assessment History (`/assessments`)**: Sortable, filterable list of all benchmark runs with search and status audits.
+- **Assessment Detail (`/assessments/[id]`)**: Deep-dive visual cards highlighting findings, evidence quotes, coverage details, regression reports, and adaptive planner outputs.
+- **Findings Explorer (`/findings`)**: Interactive security findings list with severity filters, priority sorting, and a detailed evidence side panel.
+- **Scenario Explorer (`/scenarios` & `/scenarios/[id]`)**: Debugging interface showing scenario category, turns, validation rules, violated policies, and direct trace links.
+- **Trace Explorer (`/traces` & `/traces?traceId=...`)**: Chronological event timeline showing exact user prompts, model outputs, tool calls, and result payloads (collapsible and sanitized).
+- **Regression Dashboard (`/regression`)**: Differential delta view showing verdict changes (improved / stable / regressed), score differences, and failure classifications (new / fixed / persisted / severity shifts).
+- **Adaptive Intelligence (`/adaptive`)**: Actionable recommendations, coverage gaps list, and strategy budget allocations.
+- **Artifact Explorer (`/artifacts`)**: Tree representation of the assessment graph showing types, existence states, content references, and SHA-256 integrity check status. Includes a raw JSON debugger viewer.
+
+### UI Setup & Development
+
+The web dashboard is fully isolated under `apps/web`.
+
+1. **Install dependencies**:
+   ```bash
+   cd apps/web
+   npm install
+   ```
+
+2. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
+
+3. **Run Vitest integration suites**:
+   ```bash
+   npm run test
+   ```
+
+### Data Flow
+
+```
++-----------------------------+
+|  Python Reliability Engine  |
++--------------+--------------+
+               |
+               v
++--------------+--------------+
+|     Persisted Artifacts     |
+|   (data/ and traces/ JSONs) |
++--------------+--------------+
+               |
+               v
++--------------+--------------+
+|    Next.js Read-Only API    |
+| (Input ID & Traversal Proof)|
++--------------+--------------+
+               |
+               v
++--------------+--------------+
+|  React Dashboard (Next.js)  |
+|   (Interactive View layer)  |
++-----------------------------+
+```
+
+---
+
 ## 📄 License
 
 

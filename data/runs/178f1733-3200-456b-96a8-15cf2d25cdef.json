@@ -1,0 +1,40 @@
+{
+  "run_id": "178f1733-3200-456b-96a8-15cf2d25cdef",
+  "challenge_pack_id": "1899eaa0475d71655b6530ec1e333e817d5c63b5cbaab30fdb6968ada05da78c",
+  "agent_id": "demo-customer-support-v1",
+  "agent_version": "1.0.0",
+  "status": "completed",
+  "started_at": "2026-08-21T23:55:41.216740Z",
+  "completed_at": "2026-08-21T23:55:41.220102Z",
+  "duration_ms": 3,
+  "scenario_ids": [
+    "a81b120460ea71fd1d31f8757fdce6b1791f60e4783e0e33a8a4999eeaf24264",
+    "8fe93243c4738c4ea1df30ee79f3d2a072d15ad9845be86afab9da2ea47c1c1a",
+    "2240189f47a1293cf10e1ab30a2cc7d09aaf38f5a74ca0fee195b9c45f0ad020",
+    "42da1b2e759b3b3ff075eb819c4ea69c8fd1490a95dca4b3ac2dfc5b8f6263aa",
+    "1330f83776d0a1f1ac74674a7b63bb118491c4faeeca2a29c3571b4868699689",
+    "6180bc2395c25309de348f0166f93888e94c005c2f50f6a99720b1e172383a0c",
+    "c935e4ae4cad5132ee710a9159f1183cc15c0a3c9e4d0fedbf5c2db496ef09bd",
+    "255b275c4e09bc334dc6e3ca5e24bcd30dd1d4912d97b57aa892a55751967f74",
+    "3037c3e05494980b22f315692facb7a671d352fd708b1c13c46ec84e084146c3"
+  ],
+  "trace_references": {
+    "a81b120460ea71fd1d31f8757fdce6b1791f60e4783e0e33a8a4999eeaf24264": "3702be97-161f-4911-95fb-7523ec9933ce",
+    "8fe93243c4738c4ea1df30ee79f3d2a072d15ad9845be86afab9da2ea47c1c1a": "5ab6f07f-24a4-4f5c-a579-eb8f057e77cf",
+    "2240189f47a1293cf10e1ab30a2cc7d09aaf38f5a74ca0fee195b9c45f0ad020": "66d5c499-df0e-4070-b75e-4a420c7765f2",
+    "42da1b2e759b3b3ff075eb819c4ea69c8fd1490a95dca4b3ac2dfc5b8f6263aa": "1499655c-3704-4eaf-81a8-aabb91d21624",
+    "1330f83776d0a1f1ac74674a7b63bb118491c4faeeca2a29c3571b4868699689": "98ba6403-d0ab-4132-a7f6-aa6129e96b23",
+    "6180bc2395c25309de348f0166f93888e94c005c2f50f6a99720b1e172383a0c": "12006358-686e-4a02-a9bf-4a5c442c07f8",
+    "c935e4ae4cad5132ee710a9159f1183cc15c0a3c9e4d0fedbf5c2db496ef09bd": "c6e51425-23ce-4679-90e9-826c6f81329f",
+    "255b275c4e09bc334dc6e3ca5e24bcd30dd1d4912d97b57aa892a55751967f74": "85f9cb0e-24bd-4f2b-b57a-bc3de88a6775",
+    "3037c3e05494980b22f315692facb7a671d352fd708b1c13c46ec84e084146c3": "cc71c8ea-e75d-4fa5-b937-684d8c6652c7"
+  },
+  "stats": {
+    "total_scenarios": 9,
+    "failed_scenarios": 0,
+    "successful_scenarios": 9
+  },
+  "metadata": {
+    "sandbox_type": "local_mock"
+  }
+}

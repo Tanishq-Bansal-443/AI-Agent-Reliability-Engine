@@ -451,6 +451,22 @@ to None for Phase 4A backward compatibility):
 
 **Status**: Accepted
 
+---
+
+## ADR-027: Reliability Intelligence Dashboard (Phase UI)
+
+**Decision**: Build a read-only, presentation-oriented React dashboard using Next.js and Tailwind CSS that consumes engine-persisted artifacts, while enforcing zero logic duplication (scoring, evaluation, regression analysis, planning) and strict path safety constraints at the API boundaries.
+
+### Architectural Principles
+
+- **Read-Only Separation**: The dashboard is strictly a presentation and exploration layer. It never initiates sandbox executions, runs assessments, evaluates traces, scores agents, compares baselines, or allocates test budgets. All domain intelligence is derived from the persisted artifacts on disk.
+- **Contract-Driven TypeScript Models**: The frontend TypeScript interfaces (`apps/web/src/types/index.ts`) map exactly 1-to-1 to the underlying Python Pydantic v2 schemas, preventing structural drift between the React UI and the core python engine.
+- **Confined File API Boundaries**: The Next.js API layer implements strict boundary confinement checks. Path parameters are sanitized to prevent directory traversal (`..`, `/`, `\`), and raw JSON access is strictly restricted to subfolders under `data/` and `traces/`.
+- **UI State Integrity**: If fields or related artifacts (like Regression Reports or Adaptive Test Plans) are absent from a run result, the UI represents those states explicitly (using useful empty/onboarding views and CLI code suggestions) rather than fabricating or assuming mock placeholders.
+- **High-Density Security Aesthetic**: Layout styling is dark-first, clean, and dense, maximizing developer and security audit information. It is wrapped in a dynamic context (`AssessmentContext`) that synchronizes the active agent run dynamically via URL search parameters (`?assessmentId=...`), keeping views linkable and bookmarkable.
+
+**Status**: Accepted
+
 
 
 
