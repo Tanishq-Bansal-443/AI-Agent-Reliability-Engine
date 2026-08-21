@@ -434,5 +434,23 @@ to None for Phase 4A backward compatibility):
 
 **Status**: Accepted
 
+---
+
+## ADR-026: Production Hardening & Deterministic Validation (Phase 6D)
+
+**Decision**: Execute a comprehensive production hardening pass over the entire AI Agent Reliability Engine, enforcing secret sanitization, path safety validation, atomic file writes, deterministic pipeline evaluation, and exact CLI error contract enforcement without introducing new architectural subsystems or LLM dependencies on deterministic execution paths.
+
+### Architectural Principles
+
+- **Secret Redaction at Storage Boundary**: `SecretSanitizer` in `packages/tracing/sanitizer.py` implements regex and key substring matching (`sanitize_string`, `sanitize_data`) to sanitize API keys, Bearer tokens, DB credentials, passwords, and nested metadata before persisting traces or artifacts to disk.
+- **Path Traversal Prevention**: File-based components (`ArtifactStore`, `TraceRecorder`, `save_run`, CLI commands) validate all string identifiers and filenames using `_validate_filename` to strictly reject path traversal tokens (`..`, `/`, `\`, absolute paths) prior to resolving disk paths.
+- **Atomic File Operations**: Artifact and trace persistence use atomic `.tmp` temporary file writes followed by atomic renames to prevent partial or corrupted file writes on disk interruptions.
+- **Strict Deterministic Infrastructure Isolation**: Infrastructure failures (timeouts, sandbox errors) are captured as `TIMEOUT` / `ERROR` execution statuses and converted by `DeterministicEvaluator` to `NOT_EVALUATED` and `INCONCLUSIVE` verdicts, preventing sandbox errors from appearing as security FAILs.
+- **CLI Exit Code Contracts**: CLI entrypoints strictly implement 6 documented exit codes (0=Success, 1=Regression policy failure, 2=Execution failure, 3=Evaluation failure, 4=CLI args/agent error, 5=Artifact error).
+- **Backward Compatibility**: Preserves all existing models, Pydantic v2 schemas, `challenge_pack_id` field naming, and existing public APIs while achieving 100% offline, deterministic pipeline execution across all 538+ tests.
+
+**Status**: Accepted
+
+
 
 

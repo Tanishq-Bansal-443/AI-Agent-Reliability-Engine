@@ -12,31 +12,21 @@ from pydantic import BaseModel
 
 from packages.artifacts.models import ReliabilityAssessmentArtifact
 
+from packages.tracing.sanitizer import sanitize_data
+
 ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+def _validate_filename(filename: str) -> str:
+    """Validate filename to prevent path traversal attempts."""
+    if not filename or ".." in filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
+        raise ValueError(f"Invalid identifier or path traversal detected: {filename}")
+    return filename
 
 
 class ArtifactStore:
     """
     Persistence abstraction for AI Agent Reliability Engine artifacts.
-
-    Enforces a strict directory structure:
-    data/
-        assessments/
-            <assessment_id>.json
-        challenge_packs/
-            <pack_id>.json
-        runs/
-            <run_id>.json
-        traces/
-            <trace_id>.json
-        evaluations/
-            <run_id>.json
-        reliability/
-            <assessment_id>.json
-        regression/
-            <assessment_id>.json
-        adaptive/
-            <assessment_id>.json
     """
 
     def __init__(self, base_dir: str | Path = "data", traces_dir: str | Path = "traces") -> None:
@@ -56,6 +46,7 @@ class ArtifactStore:
         }
 
     def _get_path(self, sub_dir: str, filename: str) -> Path:
+        _validate_filename(filename)
         if sub_dir == "traces":
             return self.traces_dir / filename
         return self.dirs.get(sub_dir, self.base_dir / sub_dir) / filename
@@ -64,6 +55,7 @@ class ArtifactStore:
         """
         Atomic write helper to serialize a Pydantic model to a JSON file.
         """
+        _validate_filename(filename)
         directory = self.dirs.get(sub_dir, self.base_dir / sub_dir)
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -72,8 +64,9 @@ class ArtifactStore:
 
         try:
             data = model.model_dump(mode="json")
+            sanitized_data = sanitize_data(data)
             with open(temp_filepath, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, default=str)
+                json.dump(sanitized_data, f, indent=2, default=str)
             temp_filepath.rename(filepath)
         except Exception:
             if temp_filepath.exists():
@@ -86,6 +79,7 @@ class ArtifactStore:
         """
         Load and deserialize a Pydantic model from a JSON file.
         """
+        _validate_filename(filename)
         filepath = self._get_path(sub_dir, filename)
         if not filepath.exists():
             raise FileNotFoundError(f"Artifact file not found: {filepath}")
@@ -100,6 +94,7 @@ class ArtifactStore:
             return model_cls.model_validate(data)
         except Exception as exc:
             raise ValueError(f"Failed to validate model schema for {model_cls.__name__} in {filepath}: {exc}")
+
 
     def save_assessment(self, artifact: ReliabilityAssessmentArtifact) -> Path:
         """

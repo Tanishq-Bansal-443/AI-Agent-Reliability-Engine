@@ -14,6 +14,14 @@ from pathlib import Path
 from typing import Any
 
 from packages.core.models.trace import ExecutionStatus, StepType, Trace, TraceEvent
+from packages.tracing.sanitizer import sanitize_data, sanitize_string
+
+
+def _validate_filename(filename: str) -> str:
+    """Validate filename to prevent path traversal attempts."""
+    if not filename or ".." in filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
+        raise ValueError(f"Invalid identifier or path traversal detected: {filename}")
+    return filename
 
 
 class TraceRecorder:
@@ -54,25 +62,19 @@ class TraceRecorder:
     ) -> TraceEvent:
         """
         Record a single execution event.
-
-        Args:
-            step_type: The type of event.
-            input_data: Structured input for this step.
-            output_data: Structured output from this step.
-            duration_ms: How long this step took.
-            metadata: Additional event metadata.
-
-        Returns:
-            The recorded TraceEvent.
         """
+        sanitized_input = sanitize_data(input_data)
+        sanitized_output = sanitize_data(output_data)
+        sanitized_metadata = sanitize_data(metadata or {})
+
         event = TraceEvent(
             step_index=self._step_counter,
             type=step_type,
             timestamp=datetime.now(timezone.utc),
             duration_ms=duration_ms,
-            input_data=input_data,
-            output_data=output_data,
-            metadata=metadata or {},
+            input_data=sanitized_input,
+            output_data=sanitized_output,
+            metadata=sanitized_metadata,
         )
         self._events.append(event)
         self._step_counter += 1
@@ -86,16 +88,11 @@ class TraceRecorder:
     ) -> Trace:
         """
         Finalize the trace and return the complete Trace object.
-
-        Args:
-            status: Final execution status.
-            error: Error message if status is error or timeout.
-            metadata: Additional trace-level metadata.
-
-        Returns:
-            Complete, serializable Trace.
         """
         completed_at = datetime.now(timezone.utc)
+        sanitized_error = sanitize_string(error) if error else None
+        sanitized_metadata = sanitize_data(metadata or {})
+
         return Trace(
             run_id=self._run_id,
             agent_id=self._agent_id,
@@ -106,31 +103,36 @@ class TraceRecorder:
             completed_at=completed_at,
             events=self._events,
             status=status,
-            error=error,
-            metadata=metadata or {},
+            error=sanitized_error,
+            metadata=sanitized_metadata,
         )
 
 
 def save_trace(trace: Trace, traces_dir: str | Path = "traces") -> Path:
     """
     Serialize a Trace to JSON and write it to the traces directory.
-
-    Args:
-        trace: The trace to save.
-        traces_dir: Directory to write traces into (default: 'traces/').
-
-    Returns:
-        Path to the written file.
+    Uses atomic writes and path-safety checks.
     """
+    filename = f"{trace.run_id}.json"
+    _validate_filename(filename)
+
     traces_path = Path(traces_dir)
     traces_path.mkdir(parents=True, exist_ok=True)
 
-    filename = f"{trace.run_id}.json"
     filepath = traces_path / filename
+    temp_filepath = filepath.with_suffix(".tmp")
 
     trace_data = trace.model_dump(mode="json")
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(trace_data, f, indent=2, default=str)
+    sanitized_trace_data = sanitize_data(trace_data)
+
+    try:
+        with open(temp_filepath, "w", encoding="utf-8") as f:
+            json.dump(sanitized_trace_data, f, indent=2, default=str)
+        temp_filepath.rename(filepath)
+    except Exception:
+        if temp_filepath.exists():
+            temp_filepath.unlink()
+        raise
 
     return filepath
 
@@ -138,22 +140,19 @@ def save_trace(trace: Trace, traces_dir: str | Path = "traces") -> Path:
 def load_trace(filepath: str | Path) -> Trace:
     """
     Load a Trace from a JSON file.
-
-    Args:
-        filepath: Path to the trace JSON file.
-
-    Returns:
-        Deserialized Trace object.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        ValueError: If the file cannot be parsed as a Trace.
     """
     path = Path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"Trace file not found: {filepath}")
 
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Failed to parse trace JSON in {filepath}: {exc}")
 
-    return Trace.model_validate(data)
+    try:
+        return Trace.model_validate(data)
+    except Exception as exc:
+        raise ValueError(f"Failed to validate Trace schema in {filepath}: {exc}")
+

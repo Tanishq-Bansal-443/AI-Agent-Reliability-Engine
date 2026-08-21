@@ -291,6 +291,17 @@ jobs:
 
 ---
 
+### Production Hardening & Reliability Guarantees (Phase 6D)
+
+AARE enforces strict security, determinism, and persistence hardening:
+- **Secret Sanitization**: Automatically redacts API keys (`sk-...`, `AIza...`, `AKIA...`), Bearer tokens, DB credentials, and passwords from traces and persisted artifacts.
+- **Path Traversal Protection**: Filename and identifier inputs are sanitized and validated to prevent directory traversal vulnerabilities (`../`, `/`, `\`).
+- **Atomic Persistence**: Uses temporary file writes (`.tmp`) followed by atomic rename operations to prevent artifact corruption.
+- **Deterministic Pipeline Execution**: Offline evaluation workflows run 100% deterministically without network dependencies or unhandled exceptions.
+
+---
+
 ## 📄 License
+
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -9,6 +9,13 @@ from pathlib import Path
 from packages.core.models.execution import ExecutionRun
 
 
+def _validate_filename(filename: str) -> str:
+    """Validate filename to prevent path traversal attempts."""
+    if not filename or ".." in filename or "/" in filename or "\\" in filename or Path(filename).name != filename:
+        raise ValueError(f"Invalid identifier or path traversal detected: {filename}")
+    return filename
+
+
 def save_run(run: ExecutionRun, runs_dir: str | Path = "runs") -> Path:
     """
     Serialize an ExecutionRun to JSON and write it to the runs directory.
@@ -20,11 +27,14 @@ def save_run(run: ExecutionRun, runs_dir: str | Path = "runs") -> Path:
     Returns:
         Path to the written file.
     """
+    filename = f"{run.run_id}.json"
+    _validate_filename(filename)
+
     runs_path = Path(runs_dir)
     runs_path.mkdir(parents=True, exist_ok=True)
 
-    filename = f"{run.run_id}.json"
     filepath = runs_path / filename
+
 
     run_data = run.model_dump(mode="json")
     
