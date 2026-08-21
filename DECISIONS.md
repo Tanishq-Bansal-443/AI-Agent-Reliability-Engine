@@ -401,3 +401,23 @@ to None for Phase 4A backward compatibility):
 **Status**: Accepted
 
 
+---
+
+## ADR-024: Reliability Artifacts, Reporting & Persistence Integration (Phase 6B)
+
+**Decision**: Establish a unified, file-based persistence layer using an explicit `ArtifactStore` abstraction and a deterministic human-readable report formatter, separating storage concerns from core domain and evaluation logic.
+
+### Architectural Principles
+
+- **Separation of Concerns**: Storage logic is completely encapsulated in `ArtifactStore` within the `packages/artifacts` package. The core packages (`engine`, `reliability`, etc.) do not manage directory structures or file I/O directly, preventing storage pollution in the domain layer.
+- **Unified Assessment Artifact**: The complete evaluation run is represented by a top-level `ReliabilityAssessmentArtifact` model. Rather than embedding trace payloads multiple times or flattening nested models, it references trace and execution run artifacts by their unique identifiers (`trace_ids` and `execution_run_id`).
+- **Atomic File-System Writes**: All file persistence is implemented using atomic writes (writing first to a temporary `.tmp` file in the same directory and then performing a rename) to prevent corrupt files from being produced if writes are interrupted.
+- **Integrity Validation via Content Hashing**: The top-level assessment artifact includes a SHA-256 `content_hash` computed over all deterministic JSON-serialized content (excluding the hash field itself). When loading an assessment, the hash is re-computed and verified to detect corrupted files.
+- **Offline Loading Capability**: Persistence allows historical assessments to be fully reloaded from disk into in-memory Pydantic structures. Re-loaded assessments can be passed directly to downstream components like `RegressionAnalyzer` or `ReliabilityClosedLoop` without needing live model runs.
+- **LLM-Free Deterministic Reporting**: Human-readable reports (text and Markdown formats) are generated through a deterministic, side-effect-free, and LLM-free reporting formatter that consumes existing `ReliabilityAssessment` results, ensuring zero latency, network independence, and reproducibility.
+- **Configurable Persistence**: Persistence can be toggled via `persistence_enabled` in `ReliabilityEngineConfig`. When disabled, the pipeline execution behaves identically but creates zero file system artifacts.
+
+**Status**: Accepted
+
+
+

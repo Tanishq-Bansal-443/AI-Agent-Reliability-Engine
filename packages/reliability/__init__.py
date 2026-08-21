@@ -14,6 +14,7 @@ from packages.core.models.reliability import (
 )
 from packages.reliability.scorer import ReliabilityScorer
 from packages.reliability.closed_loop import ReliabilityClosedLoop
+from packages.reliability.report import format_text, format_markdown
 
 __all__ = [
     "RegressionTest",
@@ -22,4 +23,6 @@ __all__ = [
     "ReliabilityAssessment",
     "ReliabilityScorer",
     "ReliabilityClosedLoop",
+    "format_text",
+    "format_markdown",
 ]

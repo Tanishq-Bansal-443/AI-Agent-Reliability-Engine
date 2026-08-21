@@ -396,11 +396,14 @@ class TestReliabilityEngine:
             assert traces_path.exists()
             assert len(list(traces_path.glob("*.json"))) > 0
 
-            # Verify evaluations, assessments, adaptive plan & pack are saved
+            # Verify evaluations, assessments, adaptive plan & pack are saved in the new layout
             assert (Path(config.output_dir) / "evaluations" / f"{run_id}.json").exists()
             assert (Path(config.output_dir) / "assessments" / f"{run_id}.json").exists()
-            assert (Path(config.output_dir) / "adaptive" / f"{run_id}_plan.json").exists()
-            assert (Path(config.output_dir) / "adaptive" / f"{run_id}_pack.json").exists()
+            assert (Path(config.output_dir) / "reliability" / f"{run_id}.json").exists()
+            assert (Path(config.output_dir) / "runs" / f"{result.execution_result.run_id}.json").exists()
+            assert (Path(config.output_dir) / "adaptive" / f"{run_id}.json").exists()
+            assert (Path(config.output_dir) / "challenge_packs" / f"{result.challenge_pack.id}.json").exists()
+
 
     async def test_18_persistence_disabled(self) -> None:
         """Test 18: Verify no files are written to disk when persistence is disabled."""

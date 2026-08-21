@@ -18,9 +18,10 @@ from packages.core.models.evaluation import ChallengePackEvaluationResult
 from packages.core.models.reliability import ReliabilityAssessment
 from packages.core.models.regression import RegressionReport
 from packages.core.models.adaptive import AdaptiveTestPlan
-from packages.core.models.execution import ChallengePackExecutionResult
+from packages.core.models.execution import ChallengePackExecutionResult, ExecutionRun, ExecutionRunStatus
 from packages.core.models.trace import Trace, ExecutionStatus
 from packages.core.providers.base import BaseLLMProvider
+from packages.artifacts import ArtifactStore, ReliabilityAssessmentArtifact
 
 from packages.profiler.orchestrator import AgentProfilerOrchestrator
 from packages.profiler.base import StaticProfiler, LLMProfiler
@@ -214,48 +215,87 @@ class ReliabilityEngine:
                 logger.warning(err_msg)
                 pipeline_warnings.append(err_msg)
 
+        # Construct ExecutionRun for persistence and tracking
+        execution_started = min((t.started_at for t in traces), default=datetime.now(timezone.utc))
+        execution_completed = max((t.completed_at for t in traces if t.completed_at), default=datetime.now(timezone.utc))
+        execution_duration_ms = int((execution_completed - execution_started).total_seconds() * 1000)
+
+        execution_run = ExecutionRun(
+            run_id=execution_result.run_id,
+            challenge_pack_id=challenge_pack.id,
+            agent_id=agent.id,
+            agent_version=agent.version,
+            status=ExecutionRunStatus.COMPLETED if not execution_result.errors else ExecutionRunStatus.FAILED,
+            started_at=execution_started,
+            completed_at=execution_completed,
+            duration_ms=execution_duration_ms,
+            scenario_ids=[t.scenario_id for t in traces],
+            trace_references={t.scenario_id: t.run_id for t in traces},
+            stats={
+                "total_scenarios": len(traces),
+                "failed_scenarios": len(execution_result.errors),
+                "successful_scenarios": len(traces) - len(execution_result.errors),
+            },
+            metadata=execution_result.metadata,
+        )
+
         # Step 9: Persistence (Selective & Robust)
         if self.config.persistence_enabled:
             try:
-                # Save traces using standard trace persistent system
+                store = ArtifactStore(self.config.output_dir, self.config.traces_dir)
+
+                # 1. Save traces individually using standard trace persistent system
                 for trace in traces:
                     save_trace(trace, self.config.traces_dir)
 
-                # Save evaluation result
-                self._save_model(
-                    evaluation_result,
-                    Path(self.config.output_dir) / "evaluations",
-                    f"{evaluation_result.run_id}.json",
-                )
+                # 2. Save Challenge Pack
+                store.save_artifact(challenge_pack, "challenge_packs", f"{challenge_pack.id}.json")
 
-                # Save reliability assessment
-                self._save_model(
-                    reliability_assessment,
-                    Path(self.config.output_dir) / "assessments",
-                    f"{reliability_assessment.run_id}.json",
-                )
+                # 3. Save ExecutionRun
+                store.save_artifact(execution_run, "runs", f"{execution_run.run_id}.json")
 
-                # Save regression report if computed
+                # 4. Save Evaluation result
+                store.save_artifact(evaluation_result, "evaluations", f"{evaluation_result.run_id}.json")
+
+                # 5. Save Reliability Assessment
+                store.save_artifact(reliability_assessment, "reliability", f"{reliability_assessment.run_id}.json")
+
+                # 6. Save Regression report if computed
                 if regression_report:
-                    self._save_model(
-                        regression_report,
-                        Path(self.config.output_dir) / "regressions",
-                        f"{reliability_assessment.run_id}.json",
-                    )
+                    store.save_artifact(regression_report, "regression", f"{reliability_assessment.run_id}.json")
 
-                # Save adaptive planning outputs if computed
+                # 7. Save Adaptive test plan if computed
                 if adaptive_test_plan:
-                    self._save_model(
-                        adaptive_test_plan,
-                        Path(self.config.output_dir) / "adaptive",
-                        f"{reliability_assessment.run_id}_plan.json",
-                    )
+                    store.save_artifact(adaptive_test_plan, "adaptive", f"{reliability_assessment.run_id}.json")
+
+                # Save Adaptive challenge pack if computed
                 if adaptive_challenge_pack:
-                    self._save_model(
-                        adaptive_challenge_pack,
-                        Path(self.config.output_dir) / "adaptive",
-                        f"{reliability_assessment.run_id}_pack.json",
-                    )
+                    store.save_artifact(adaptive_challenge_pack, "challenge_packs", f"{adaptive_challenge_pack.id}.json")
+
+                # 8. Save Top-Level Assessment Artifact
+                top_level_artifact = ReliabilityAssessmentArtifact(
+                    assessment_id=run_id,
+                    agent_id=agent.id,
+                    agent_version=agent.version,
+                    challenge_pack_id=challenge_pack.id,
+                    execution_run_id=execution_run.run_id,
+                    trace_ids=[t.run_id for t in traces],
+                    evaluation_result=evaluation_result,
+                    reliability_assessment=reliability_assessment,
+                    regression_report=regression_report,
+                    adaptive_test_plan=adaptive_test_plan,
+                    created_at=execution_started,
+                    completed_at=datetime.now(timezone.utc),
+                    engine_config=self.config.model_dump(mode="json"),
+                    warnings=pipeline_warnings,
+                    errors=list(execution_result.errors.values()),
+                    metadata={
+                        "sandbox_type": execution_result.metadata.get("sandbox_type", "unknown"),
+                        "adaptive_challenge_pack_id": adaptive_challenge_pack.id if adaptive_challenge_pack else None,
+                    }
+                )
+                store.save_assessment(top_level_artifact)
+
             except Exception as exc:
                 pipeline_warnings.append(f"Persistence layer failed: {exc}")
 

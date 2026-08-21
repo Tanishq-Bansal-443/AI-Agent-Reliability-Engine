@@ -78,6 +78,8 @@ from packages.core.models.adaptive import (
 )
 from packages.core.models.execution import (
     ChallengePackExecutionResult,
+    ExecutionRun,
+    ExecutionRunStatus,
 )
 
 
@@ -147,5 +149,7 @@ __all__ = [
     "AdaptivePackMetadata",
     # execution
     "ChallengePackExecutionResult",
+    "ExecutionRun",
+    "ExecutionRunStatus",
 ]
 
