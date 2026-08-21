@@ -384,3 +384,20 @@ to None for Phase 4A backward compatibility):
 
 **Status**: Accepted
 
+---
+
+## ADR-023: Top-Level Engine Orchestration (Phase 6A)
+
+**Decision**: Implement a top-level `ReliabilityEngine` that integrates all existing Phase 0-5 subsystems into a single, unified, and reproducible assessment pipeline, while preserving intermediate domain objects and isolating execution failures.
+
+### Architectural Principles
+
+- **Orchestration Only, No Domain Duplication**: The `ReliabilityEngine` is strictly a composition layer. It delegates all domain actions to existing subsystems: agent profiling to `AgentProfilerOrchestrator`, strategy selection to `AttackStrategyRegistry`, challenge generation to `ChallengePackBuilder`, sandbox execution to sandbox implementations (`BaseSandbox`), trace evaluation to `ChallengePackEvaluator`, reliability scoring to `ReliabilityScorer`, regression comparison to `RegressionAnalyzer`, and adaptive planning to `ReliabilityClosedLoop`.
+- **Preservation of Domain Richness**: Rather than flattening or discarding intermediate results, the engine produces a `ReliabilityRunResult` containing all original domain objects (including the agent definitions, risk profiles, generated challenge packs, trace records, evaluations, and assessments), making them serializable and inspectable.
+- **Strict Execution Failure Isolation**: Failures in execution runs (such as sandbox timeouts or runtime errors) are captured and recorded separately as error traces, preventing them from raising unhandled exceptions or crashing the entire evaluation run.
+- **Fail-Fast Configuration**: Supports a `fail_fast` option that halts subsequent scenario execution if any scenario fails to execute successfully in the sandbox, allowing quick failure feedback in dev loops.
+- **Preserved Artifact Provenance**: Results remain fully serializable using project Pydantic v2 conventions and can link directly to trace IDs, challenge pack IDs, and assessment run IDs.
+
+**Status**: Accepted
+
+

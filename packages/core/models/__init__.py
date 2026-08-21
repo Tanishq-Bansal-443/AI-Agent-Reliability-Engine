@@ -76,6 +76,9 @@ from packages.core.models.adaptive import (
     AdaptiveScenarioAllocation,
     AdaptivePackMetadata,
 )
+from packages.core.models.execution import (
+    ChallengePackExecutionResult,
+)
 
 
 __all__ = [
@@ -142,5 +145,7 @@ __all__ = [
     "AdaptiveTestPlan",
     "AdaptiveScenarioAllocation",
     "AdaptivePackMetadata",
+    # execution
+    "ChallengePackExecutionResult",
 ]
 
