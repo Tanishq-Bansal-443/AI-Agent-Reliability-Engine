@@ -238,7 +238,7 @@ export default function OverviewPage() {
               {mounted ? (
                 <ResponsiveContainer width="100%" height="85%">
                   <BarChart data={historyData}>
-                    <XAxis dataKey="name" stroke="#52525b" fontSize={10} fontClassName="font-mono" />
+                    <XAxis dataKey="name" stroke="#52525b" fontSize={10} className="font-mono" />
                     <YAxis stroke="#52525b" fontSize={10} domain={[0, 100]} />
                     <Tooltip
                       contentStyle={{ background: '#18181b', border: '1px solid #27272a' }}

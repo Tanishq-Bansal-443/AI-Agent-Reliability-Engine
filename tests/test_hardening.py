@@ -512,6 +512,63 @@ def test_20_exception_message_sanitization():
     assert "[REDACTED_SECRET]" in trace.error
 
 
+def test_20b_sanitizer_regression_tests():
+    """Focused regression tests to prove domain keys/values are preserved while actual secrets are redacted."""
+    # 1. Preserve domain keys/values
+    data = {
+        "authorization_bypass": True,
+        "authorization": True,
+        "authorization_sensitive": "high",
+        "authorization_required": False,
+        "authorization_status": "allowed",
+        "target_risk": "authorization",
+    }
+    clean = sanitize_data(data)
+    assert clean["authorization_bypass"] is True
+    assert clean["authorization"] is True
+    assert clean["authorization_sensitive"] == "high"
+    assert clean["authorization_required"] is False
+    assert clean["authorization_status"] == "allowed"
+    assert clean["target_risk"] == "authorization"
+
+    # 2. Redact actual credentials/secrets
+    secrets_data = {
+        "api_key": "sk-abcdef1234567890abcdef1234",
+        "password": "super-secret-password-999",
+        "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+        "db_password": "my_db_password_abc",
+    }
+    clean_secrets = sanitize_data(secrets_data)
+    assert clean_secrets["api_key"] == "[REDACTED_SECRET]"
+    assert clean_secrets["password"] == "[REDACTED_SECRET]"
+    assert clean_secrets["authorization"] == "[REDACTED_SECRET]"
+    assert clean_secrets["db_password"] == "[REDACTED_SECRET]"
+
+    # 3. DB connection credential check
+    db_data = {
+        "db_url": "postgresql://postgres:dbsecretpass@localhost:5432/mydb"
+    }
+    clean_db = sanitize_data(db_data)
+    assert "dbsecretpass" not in clean_db["db_url"]
+    assert "[REDACTED_SECRET]" in clean_db["db_url"]
+
+    # 4. Nested structure sanitization
+    nested_data = {
+        "outer": {
+            "inner_bypass": True,
+            "inner_auth": True,
+            "secret_key": "sk-1234567890abcdef1234567890",
+            "nested_list": ["Bearer token_xyz", "authorization_bypass"]
+        }
+    }
+    clean_nested = sanitize_data(nested_data)
+    assert clean_nested["outer"]["inner_bypass"] is True
+    assert clean_nested["outer"]["inner_auth"] is True
+    assert clean_nested["outer"]["secret_key"] == "[REDACTED_SECRET]"
+    assert clean_nested["outer"]["nested_list"][0] == "Bearer [REDACTED_SECRET]"
+    assert clean_nested["outer"]["nested_list"][1] == "authorization_bypass"
+
+
 # ============================================================================
 # 4. Execution & Sandbox Tests (21-28)
 # ============================================================================

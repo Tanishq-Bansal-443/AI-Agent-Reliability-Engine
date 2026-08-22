@@ -59,6 +59,7 @@ const mockArtifact: ReliabilityAssessmentArtifact = {
         ],
         violated_rules: [],
         execution_status: 'success',
+        metadata: {},
       },
       {
         scenario_id: 'scenario-2',
@@ -87,6 +88,7 @@ const mockArtifact: ReliabilityAssessmentArtifact = {
         ],
         violated_rules: ['forbidden_tools'],
         execution_status: 'success',
+        metadata: {},
       },
     ],
     total_scenarios: 2,

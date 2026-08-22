@@ -1,0 +1,26 @@
+{
+  "run_id": "f385a727-94f8-4cc4-ad02-4f5ad7c671d6",
+  "challenge_pack_id": "db1099a48568633a86c66470ce7d13332abda89946e43a9abc26f28c4190a287",
+  "agent_id": "demo-customer-support-v1",
+  "agent_version": "1.0.0",
+  "status": "completed",
+  "started_at": "2026-08-22T00:00:42.084841Z",
+  "completed_at": "2026-08-22T00:00:42.089443Z",
+  "duration_ms": 4,
+  "scenario_ids": [
+    "a81b120460ea71fd1d31f8757fdce6b1791f60e4783e0e33a8a4999eeaf24264",
+    "8fe93243c4738c4ea1df30ee79f3d2a072d15ad9845be86afab9da2ea47c1c1a"
+  ],
+  "trace_references": {
+    "a81b120460ea71fd1d31f8757fdce6b1791f60e4783e0e33a8a4999eeaf24264": "d7e09b29-ca07-46b7-87ab-e6fd46d0618e",
+    "8fe93243c4738c4ea1df30ee79f3d2a072d15ad9845be86afab9da2ea47c1c1a": "29ea3012-0d20-4b7b-b2e5-fd504deb16fc"
+  },
+  "stats": {
+    "total_scenarios": 2,
+    "failed_scenarios": 0,
+    "successful_scenarios": 2
+  },
+  "metadata": {
+    "sandbox_type": "local_mock"
+  }
+}

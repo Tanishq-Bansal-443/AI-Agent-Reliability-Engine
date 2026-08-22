@@ -5,7 +5,6 @@ import { useAssessment } from '../../context/AssessmentContext';
 import {
   AlertTriangle,
   Search,
-  Tool,
   CheckCircle,
   Eye,
   SlidersHorizontal,

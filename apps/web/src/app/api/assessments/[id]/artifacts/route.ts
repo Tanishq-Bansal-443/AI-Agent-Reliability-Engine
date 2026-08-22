@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadAssessment, checkAssessmentIntegrity, checkArtifactExistence } from '../../../../lib/api';
+import { loadAssessment, checkAssessmentIntegrity, checkArtifactExistence } from '../../../../../lib/api';
 
 export async function GET(
   request: NextRequest,

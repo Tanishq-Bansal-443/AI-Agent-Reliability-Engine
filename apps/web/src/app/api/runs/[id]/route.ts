@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadExecutionRun } from '../../../lib/api';
+import { loadExecutionRun } from '../../../../lib/api';
 
 export async function GET(
   request: NextRequest,

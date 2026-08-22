@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Activity,
   AlertTriangle,
+  AlertCircle,
   CheckCircle,
   HelpCircle,
   FileText,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 import { ChallengePack, ScenarioEvaluationResult } from '../../../types';
 
-export default function ScenarioDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function ScenarioDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const assessmentId = searchParams.get('assessmentId');
@@ -37,10 +38,11 @@ export default function ScenarioDetailPage({ params }: { params: Promise<{ id: s
   // Load the corresponding challenge pack to show deep scenario static definitions
   useEffect(() => {
     if (!activeAssessment) return;
+    const challengePackId = activeAssessment.challenge_pack_id;
     async function fetchPack() {
       try {
         setLoadingPack(true);
-        const res = await fetch(`/api/challenge_packs/${activeAssessment.challenge_pack_id}`);
+        const res = await fetch(`/api/challenge_packs/${challengePackId}`);
         if (!res.ok) throw new Error('Failed to load challenge pack details');
         const data = await res.json();
         setPack(data);
@@ -371,7 +373,7 @@ export default function ScenarioDetailPage({ params }: { params: Promise<{ id: s
                     <span className="text-zinc-300">{result.llm_verdict}</span>
                   </div>
                 )}
-                {result.llm_confidence !== null && (
+                {result.llm_confidence != null && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">LLM Confidence score:</span>
                     <span className="text-zinc-300">{(result.llm_confidence * 100).toFixed(0)}%</span>
@@ -383,5 +385,13 @@ export default function ScenarioDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ScenarioDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-xs font-mono text-zinc-500">Loading scenario details...</div>}>
+      <ScenarioDetailContent params={params} />
+    </React.Suspense>
   );
 }

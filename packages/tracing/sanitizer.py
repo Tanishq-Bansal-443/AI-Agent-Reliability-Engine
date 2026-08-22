@@ -25,6 +25,24 @@ _SENSITIVE_KEY_SUBSTRINGS: set[str] = {
     "db_password",
 }
 
+_EXACT_SENSITIVE_KEYS: set[str] = {
+    "password",
+    "passwd",
+    "api_key",
+    "apikey",
+    "token",
+    "tokens",
+    "access_token",
+    "auth_token",
+    "private_key",
+    "db_password",
+}
+
+_SUBSTRING_SENSITIVE_KEYS: set[str] = {
+    "secret",
+    "credential",
+}
+
 REDACTED_PLACEHOLDER = "[REDACTED_SECRET]"
 
 
@@ -57,6 +75,42 @@ def sanitize_string(text: str) -> str:
     return result
 
 
+def is_sensitive_key_val(key_str: str, value: Any) -> bool:
+    """
+    Check if a key-value pair is sensitive and should be redacted.
+    """
+    # 1. Exact match for specific sensitive key names
+    if key_str in _EXACT_SENSITIVE_KEYS:
+        return True
+
+    # 2. Substring match for secret/credential terms
+    if any(sens in key_str for sens in _SUBSTRING_SENSITIVE_KEYS):
+        return True
+
+    # 3. Precise check for "authorization" key
+    if key_str == "authorization":
+        if isinstance(value, str):
+            val_stripped = value.strip()
+            # Redact if it matches standard authorization credentials formats
+            if re.match(r"^(bearer|basic|token)\s+.+", val_stripped, re.IGNORECASE):
+                return True
+            if (
+                re.search(r"sk-[a-zA-Z0-9_-]{20,}", val_stripped)
+                or re.search(r"AIza[0-9A-Za-z\-_]{35}", val_stripped)
+                or re.search(r"AKIA[0-9A-Z]{16}", val_stripped)
+                or "://" in val_stripped
+            ):
+                return True
+            # Long high-entropy token/key without spaces
+            if len(val_stripped) > 15 and " " not in val_stripped:
+                return True
+            return False
+        # If it is dict, list, bool, number, let recursive sanitization process elements inside
+        return False
+
+    return False
+
+
 def sanitize_data(data: Any) -> Any:
     """
     Recursively sanitize structured data (dicts, lists, primitives).
@@ -67,7 +121,7 @@ def sanitize_data(data: Any) -> Any:
         sanitized_dict = {}
         for key, value in data.items():
             key_str = str(key).lower()
-            if any(sens in key_str for sens in _SENSITIVE_KEY_SUBSTRINGS):
+            if is_sensitive_key_val(key_str, value):
                 sanitized_dict[key] = REDACTED_PLACEHOLDER
             else:
                 sanitized_dict[key] = sanitize_data(value)

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Trace, TraceEvent } from '../../types';
 
-export default function TracesPage() {
+function TracesContent() {
   const searchParams = useSearchParams();
   const traceIdParam = searchParams.get('traceId');
 
@@ -327,5 +327,13 @@ export default function TracesPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TracesPage() {
+  return (
+    <React.Suspense fallback={<div className="p-8 text-xs font-mono text-zinc-500">Loading traces...</div>}>
+      <TracesContent />
+    </React.Suspense>
   );
 }

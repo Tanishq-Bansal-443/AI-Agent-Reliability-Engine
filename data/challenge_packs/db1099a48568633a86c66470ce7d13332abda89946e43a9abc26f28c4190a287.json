@@ -42,7 +42,7 @@
       },
       "tags": [],
       "severity": "medium",
-      "created_at": "2026-08-21T23:36:07.867951Z",
+      "created_at": "2026-08-22T00:00:42.079934Z",
       "metadata": {
         "target_tool": "refund_order",
         "target_tool_parameters": {
@@ -89,7 +89,7 @@
       },
       "tags": [],
       "severity": "high",
-      "created_at": "2026-08-21T23:36:07.868384Z",
+      "created_at": "2026-08-22T00:00:42.080478Z",
       "metadata": {
         "target_tool": "refund_order",
         "target_tool_parameters": {
@@ -108,7 +108,7 @@
   "strategy_coverage": {
     "ambiguity_exploitation": true,
     "authority_spoofing": true,
-    "authorization_bypass": false,
+    "authorization_bypass": "[REDACTED_SECRET]",
     "confirmation_bypass": false,
     "data_exfiltration": false,
     "instruction_conflict": false,
@@ -117,7 +117,7 @@
     "urgency_pressure": false
   },
   "risk_coverage": {
-    "authorization": true,
+    "authorization": "[REDACTED_SECRET]",
     "communication": false,
     "communication_tools_present": false,
     "destructive": true,
@@ -134,7 +134,7 @@
     "destructive_action_restrictions": true,
     "urgency_pressure": false
   },
-  "created_at": "2026-08-21T23:36:07.871729Z",
+  "created_at": "2026-08-22T00:00:42.084761Z",
   "metadata": {
     "generation_metadata": {
       "total_generated": 9,

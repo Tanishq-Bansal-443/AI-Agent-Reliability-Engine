@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadTrace } from '../../../lib/api';
+import { loadTrace } from '../../../../lib/api';
 
 export async function GET(
   request: NextRequest,

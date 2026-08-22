@@ -4,6 +4,8 @@ import { AssessmentProvider } from '../context/AssessmentContext';
 import DashboardShell from '../components/DashboardShell';
 import './globals.css';
 
+import { Suspense } from 'react';
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
@@ -20,9 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} bg-zinc-950 text-zinc-50 min-h-screen`}>
-        <AssessmentProvider>
-          <DashboardShell>{children}</DashboardShell>
-        </AssessmentProvider>
+        <Suspense fallback={<div className="p-8 text-xs font-mono text-zinc-500">Loading...</div>}>
+          <AssessmentProvider>
+            <DashboardShell>{children}</DashboardShell>
+          </AssessmentProvider>
+        </Suspense>
       </body>
     </html>
   );

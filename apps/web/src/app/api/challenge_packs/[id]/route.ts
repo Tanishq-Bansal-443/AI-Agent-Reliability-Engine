@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadChallengePack } from '../../../lib/api';
+import { loadChallengePack } from '../../../../lib/api';
 
 export async function GET(
   request: NextRequest,

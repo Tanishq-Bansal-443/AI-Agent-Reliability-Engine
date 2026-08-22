@@ -34,13 +34,14 @@ export default function AssessmentDetailPage({ params }: { params: Promise<{ id:
   // Load assessment detail
   useEffect(() => {
     if (!unwrappedParams) return;
+    const assessmentId = unwrappedParams.id;
     async function fetchDetail() {
       try {
         setLoading(true);
-        const res = await fetch(`/api/assessments/${unwrappedParams.id}`);
+        const res = await fetch(`/api/assessments/${assessmentId}`);
         if (!res.ok) {
           if (res.status === 404) {
-            throw new Error(`Assessment '${unwrappedParams.id}' not found`);
+            throw new Error(`Assessment '${assessmentId}' not found`);
           }
           throw new Error('Failed to load assessment');
         }

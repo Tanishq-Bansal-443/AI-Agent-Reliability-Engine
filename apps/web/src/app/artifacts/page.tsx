@@ -38,6 +38,7 @@ export default function ArtifactsPage() {
   // Load the artifacts tree structure for the active assessment
   useEffect(() => {
     if (!activeAssessment) return;
+    const assessmentId = activeAssessment.assessment_id;
     async function fetchTree() {
       try {
         setLoading(true);
@@ -46,7 +47,7 @@ export default function ArtifactsPage() {
         setSelectedNode(null);
         setRawJson(null);
         
-        const res = await fetch(`/api/assessments/${activeAssessment.assessment_id}/artifacts`);
+        const res = await fetch(`/api/assessments/${assessmentId}/artifacts`);
         if (!res.ok) throw new Error('Failed to load artifacts graph');
         const data = await res.json();
         setTreeData(data);
@@ -68,12 +69,13 @@ export default function ArtifactsPage() {
       setRawJson(null);
       return;
     }
+    const nodePath = selectedNode.path;
 
     async function fetchRawJson() {
       try {
         setLoadingRaw(true);
         setRawJson(null);
-        const res = await fetch(`/api/raw-artifact?path=${encodeURIComponent(selectedNode.path)}`);
+        const res = await fetch(`/api/raw-artifact?path=${encodeURIComponent(nodePath)}`);
         if (!res.ok) throw new Error('Failed to fetch raw JSON content');
         const data = await res.json();
         setRawJson(data);
