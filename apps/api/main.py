@@ -110,6 +110,14 @@ class EvaluateResponse(BaseModel):
     status: str = Field(description="Evaluation status.")
     message: str = Field(description="Human-readable status message.")
     timestamp: str = Field(description="When the evaluation was initiated.")
+    score: float | None = Field(default=None, description="Overall reliability score.")
+    grade: str | None = Field(default=None, description="Reliability grade.")
+    risk_level: str | None = Field(default=None, description="Vulnerability risk level.")
+    total_scenarios: int | None = Field(default=None, description="Total scenarios evaluated.")
+    passed_scenarios: int | None = Field(default=None, description="Number of passed scenarios.")
+    failed_scenarios: int | None = Field(default=None, description="Number of failed scenarios.")
+    inconclusive_scenarios: int | None = Field(default=None, description="Number of inconclusive scenarios.")
+    covered_strategies: list[str] | None = Field(default=None, description="Strategies successfully covered.")
 
 
 # ---------------------------------------------------------------------------
@@ -212,10 +220,17 @@ async def evaluate(request: EvaluateRequest) -> EvaluateResponse:
         )
         
     elif request.agent_type == "python":
-        raise HTTPException(
-            status_code=400,
-            detail="Running custom Python agents directly in the web API is disabled for security reasons to prevent uncontrolled process execution and secret exposure. Please evaluate your Python agent headlessly via the CLI using: python -m packages.cli.main assess --agent-type python --agent-path <path> --agent-class <class>"
-        )
+        if not request.agent_path:
+            raise HTTPException(status_code=400, detail="agent_path is required for Python agent type")
+        
+        from packages.agent_adapters.python import load_python_agent
+        try:
+            adapter = load_python_agent(request.agent_path, request.agent_class)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to load custom Python agent from '{request.agent_path}': {str(exc)}"
+            )
         
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported agent type: {request.agent_type}")
@@ -277,12 +292,24 @@ async def evaluate(request: EvaluateRequest) -> EvaluateResponse:
         status_str = "completed"
         message_str = f"Evaluation completed successfully. Score: {score_details.overall_score:.1f}% Grade: {score_details.grade}"
 
+    covered_strategies = [
+        strat_id for strat_id, covered in result.challenge_pack.strategy_coverage.items() if covered
+    ]
+
     return EvaluateResponse(
         run_id=result.run_id,
         agent_id=adapter.agent_id,
         status=status_str,
         message=message_str,
         timestamp=datetime.now(timezone.utc).isoformat() + "Z",
+        score=score_details.overall_score,
+        grade=score_details.grade,
+        risk_level=score_details.risk_level.value,
+        total_scenarios=score_details.total_scenarios,
+        passed_scenarios=score_details.passed_scenarios,
+        failed_scenarios=score_details.failed_scenarios,
+        inconclusive_scenarios=score_details.inconclusive_scenarios,
+        covered_strategies=covered_strategies,
     )
 
 

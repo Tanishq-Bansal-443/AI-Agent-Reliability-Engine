@@ -5,31 +5,46 @@ import { useRouter } from 'next/navigation';
 import { useAssessment } from '../../context/AssessmentContext';
 import {
   Play,
-  Cpu,
   Globe,
   FileCode,
   AlertCircle,
   CheckCircle2,
-  Copy,
-  Check,
   Loader2,
-  ExternalLink,
-  ShieldCheck,
+  ArrowRight,
+  TrendingUp,
+  Shield,
+  Activity,
+  Gauge,
+  ClipboardList,
+  Eye,
 } from 'lucide-react';
+
+interface SuccessMetrics {
+  runId: string;
+  agentId: string;
+  message: string;
+  score: number;
+  grade: string;
+  riskLevel: string;
+  totalScenarios: number;
+  passedScenarios: number;
+  failedScenarios: number;
+  inconclusiveScenarios: number;
+  coveredStrategies: string[];
+}
 
 export default function EvaluatePage() {
   const router = useRouter();
   const { selectAssessment } = useAssessment();
 
-  // Tabs: 'example' | 'http' | 'python'
-  const [activeTab, setActiveTab] = useState<'example' | 'http' | 'python'>('example');
+  // Tabs: 'http' | 'python'
+  const [activeTab, setActiveTab] = useState<'http' | 'python'>('http');
 
-  // Common loading / error states
+  // Common loading / error / success states
   const [running, setRunning] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ runId: string; message: string } | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [successMetrics, setSuccessMetrics] = useState<SuccessMetrics | null>(null);
 
   // Form states: HTTP
   const [httpName, setHttpName] = useState('http_agent');
@@ -39,52 +54,44 @@ export default function EvaluatePage() {
   const [httpInputField, setHttpInputField] = useState('message');
   const [httpOutputField, setHttpOutputField] = useState('response');
 
-  // Form states: Python (for CLI Command Helper)
+  // Form states: Python
   const [pyPath, setPyPath] = useState('agents/custom_agent_template.py');
   const [pyClass, setPyClass] = useState('CustomAgentAdapter');
-
-  // Dynamic python command builder
-  const buildPythonCommand = () => {
-    let cmd = `python -m packages.cli.main assess --agent-type python --agent-path "${pyPath}"`;
-    if (pyClass.trim()) {
-      cmd += ` --agent-class "${pyClass.trim()}"`;
-    }
-    return cmd;
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const runEvaluation = async () => {
     setRunning(true);
     setError(null);
-    setSuccess(null);
-    setProgressMsg('Initializing evaluation engine...');
+    setSuccessMetrics(null);
+    setProgressMsg('Connecting to adapter and starting pipeline...');
 
     const payload: any = {
       agent_type: activeTab,
     };
 
-    if (activeTab === 'example') {
-      payload.agent_id = 'demo_customer_support';
-      setProgressMsg('Profiling built-in agent and generating challenge pack...');
-    } else if (activeTab === 'http') {
+    if (activeTab === 'http') {
       payload.agent_id = httpName;
       payload.endpoint_url = httpEndpoint;
       payload.method = httpMethod;
       payload.timeout = parseFloat(httpTimeout) || 10.0;
       payload.request_input_field = httpInputField;
       payload.response_output_field = httpOutputField;
-      setProgressMsg(`Connecting to HTTP agent at ${httpEndpoint}...`);
+      setProgressMsg('Initializing HTTP Agent client & querying metadata...');
     } else {
-      setRunning(false);
-      return;
+      payload.agent_id = 'custom_python_agent';
+      payload.agent_path = pyPath;
+      payload.agent_class = pyClass;
+      setProgressMsg('Loading Python module & validating class signatures...');
     }
 
     try {
+      // Step simulation message rotation
+      const timers = [
+        setTimeout(() => setProgressMsg('Analyzing system prompt and building attack surface profile...'), 1500),
+        setTimeout(() => setProgressMsg('Matching strategies and generating adversarial challenge pack...'), 3500),
+        setTimeout(() => setProgressMsg('Executing scenarios E2E in secure isolated sandbox environment...'), 6000),
+        setTimeout(() => setProgressMsg('Evaluating traces & running adaptive planning loops...'), 9000),
+      ];
+
       const res = await fetch('/api/evaluate', {
         method: 'POST',
         headers: {
@@ -93,329 +100,368 @@ export default function EvaluatePage() {
         body: JSON.stringify(payload),
       });
 
+      // Clear timers
+      timers.forEach(t => clearTimeout(t));
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to complete evaluation run.');
       }
 
-      setSuccess({
+      setSuccessMetrics({
         runId: data.run_id,
-        message: data.message || 'Evaluation finished.',
+        agentId: data.agent_id,
+        message: data.message,
+        score: data.score ?? 0,
+        grade: data.grade ?? 'F',
+        riskLevel: data.risk_level ?? 'CRITICAL',
+        totalScenarios: data.total_scenarios ?? 0,
+        passedScenarios: data.passed_scenarios ?? 0,
+        failedScenarios: data.failed_scenarios ?? 0,
+        inconclusiveScenarios: data.inconclusive_scenarios ?? 0,
+        coveredStrategies: data.covered_strategies ?? [],
       });
 
-      // Automatically refresh the dashboard data and select the new assessment
-      setTimeout(() => {
-        selectAssessment(data.run_id);
-        router.push(`/?assessmentId=${data.run_id}`);
-      }, 1500);
-
     } catch (err: any) {
-      setError(err.message || 'Unknown evaluation execution error.');
+      let friendlyError = err.message || 'Unknown evaluation execution error.';
+      if (friendlyError.includes('Failed to connect') || friendlyError.includes('Connection Error')) {
+        friendlyError += ' | Suggestion: Check that your HTTP agent process is running locally on the correct port and host address.';
+      } else if (friendlyError.includes('No valid agent adapter class')) {
+        friendlyError += ' | Suggestion: Verify that your Python file exists and contains a class subclassing BaseAgentAdapter.';
+      }
+      setError(friendlyError);
     } finally {
       setRunning(false);
       setProgressMsg('');
     }
   };
 
-  const pythonTemplateCode = `from packages.agent_adapters.base import BaseAgentAdapter
-from packages.core.models.agent import Agent, AgentInput, AgentOutput, AgentProfile
-from packages.sandbox.tool_runtime import ToolRuntime
-
-class CustomAgentAdapter(BaseAgentAdapter):
-    def get_agent(self) -> Agent:
-        return Agent(
-            id="custom_agent",
-            name="My Custom Agent",
-            system_prompt="You are a customer service assistant.",
-            tools=[]
-        )
-
-    def get_profile(self) -> AgentProfile:
-        # Define capability profile and attack surfaces
-        ...
-
-    async def run(self, agent_input: AgentInput, runtime: ToolRuntime) -> AgentOutput:
-        # Route your LLM execution and return AgentOutput
-        ...`;
+  const viewReport = () => {
+    if (successMetrics) {
+      selectAssessment(successMetrics.runId);
+      router.push(`/?assessmentId=${successMetrics.runId}`);
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div className="border-b border-zinc-800 pb-5">
         <h1 className="text-xl font-bold text-zinc-100 font-mono flex items-center gap-2">
-          <Cpu className="h-5.5 w-5.5 text-emerald-400" />
-          Evaluate Your Agent
+          <Activity className="h-5.5 w-5.5 text-emerald-400" />
+          Reliability Evaluation Playground
         </h1>
         <p className="text-xs text-zinc-400 font-mono mt-1">
-          Benchmark and test custom agents using our target adversarial test suite.
+          Evaluate and benchmark custom LLM agents against generated targeted adversarial vectors.
         </p>
       </div>
 
-      {/* Tabs list */}
-      <div className="flex bg-zinc-900 border border-zinc-850 p-1.5 rounded-xl gap-2">
-        <button
-          onClick={() => { setActiveTab('example'); setError(null); setSuccess(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-semibold font-mono transition-all duration-200 ${
-            activeTab === 'example'
-              ? 'bg-zinc-800 text-emerald-400 border border-zinc-700/50 shadow-lg shadow-emerald-500/5'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
-          }`}
-        >
-          <Cpu className="h-4 w-4" />
-          Built-in Demo Agent
-        </button>
-        <button
-          onClick={() => { setActiveTab('http'); setError(null); setSuccess(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-semibold font-mono transition-all duration-200 ${
-            activeTab === 'http'
-              ? 'bg-zinc-800 text-emerald-400 border border-zinc-700/50 shadow-lg shadow-emerald-500/5'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
-          }`}
-        >
-          <Globe className="h-4 w-4" />
-          HTTP/API Agent
-        </button>
-        <button
-          onClick={() => { setActiveTab('python'); setError(null); setSuccess(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-semibold font-mono transition-all duration-200 ${
-            activeTab === 'python'
-              ? 'bg-zinc-800 text-emerald-400 border border-zinc-700/50 shadow-lg shadow-emerald-500/5'
-              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
-          }`}
-        >
-          <FileCode className="h-4 w-4" />
-          Python Agent
-        </button>
-      </div>
-
-      {/* Main Tab Panel */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-        {/* Glow Background accent */}
-        <div className="absolute -top-24 -right-24 h-48 w-48 bg-emerald-500/10 blur-[80px] rounded-full pointer-events-none" />
-
-        {/* Tab 1: Example Agent */}
-        {activeTab === 'example' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-200 font-mono">Demo Customer Support</h2>
-              <p className="text-xs text-zinc-400 font-mono mt-1 leading-relaxed">
-                Run the reliability engine against our built-in vulnerable agent. This will profile its tools (refunds, emails, status lookups) and execute adversarial spoofing and pressure tests.
-              </p>
-            </div>
-            <div className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 space-y-3 font-mono text-[11px]">
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-500">Agent ID:</span>
-                <span className="text-zinc-300 font-medium">demo-customer-support-v1</span>
-              </div>
-              <div className="flex justify-between border-b border-zinc-900 pb-2">
-                <span className="text-zinc-500">Known Vulnerability:</span>
-                <span className="text-rose-400 font-medium">Bypasses verification under supervisor authority</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Scenarios Included:</span>
-                <span className="text-zinc-300 font-medium">Authority Spoofing, Urgency Pressure, etc.</span>
-              </div>
-            </div>
+      {/* Grid: Form & How it works */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Form Panel */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Tab Selector */}
+          <div className="flex bg-zinc-900 border border-zinc-850 p-1 rounded-xl gap-2">
+            <button
+              onClick={() => { setActiveTab('http'); setError(null); setSuccessMetrics(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold font-mono transition-all duration-200 ${
+                activeTab === 'http'
+                  ? 'bg-zinc-800 text-emerald-400 border border-zinc-700/50 shadow-lg'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
+              }`}
+            >
+              <Globe className="h-4 w-4" />
+              HTTP/API Agent
+            </button>
+            <button
+              onClick={() => { setActiveTab('python'); setError(null); setSuccessMetrics(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-semibold font-mono transition-all duration-200 ${
+                activeTab === 'python'
+                  ? 'bg-zinc-800 text-emerald-400 border border-zinc-700/50 shadow-lg'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850/50'
+              }`}
+            >
+              <FileCode className="h-4 w-4" />
+              Python Agent
+            </button>
           </div>
-        )}
 
-        {/* Tab 2: HTTP Agent */}
-        {activeTab === 'http' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-200 font-mono">External HTTP Agent Integration</h2>
-              <p className="text-xs text-zinc-400 font-mono mt-1 leading-relaxed">
-                Connect an agent running independently on your network or local port. The engine sends scenario prompts to your endpoint and scores its reactions.
-              </p>
-            </div>
+          {/* Form Content card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+            <div className="absolute -top-24 -right-24 h-48 w-48 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Agent Identifier</label>
-                <input
-                  type="text"
-                  value={httpName}
-                  onChange={(e) => setHttpName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
-                />
+            {running && (
+              <div className="absolute inset-0 bg-zinc-950/85 backdrop-blur-sm flex flex-col items-center justify-center text-zinc-300 font-mono p-6 text-center z-25">
+                <Loader2 className="h-10 w-10 text-emerald-500 animate-spin mb-4" />
+                <div className="text-sm font-semibold text-zinc-200">Executing Reliability Assessment...</div>
+                <div className="text-[10px] text-zinc-400 mt-2 max-w-sm leading-relaxed">{progressMsg}</div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Endpoint URL</label>
-                <input
-                  type="text"
-                  value={httpEndpoint}
-                  onChange={(e) => setHttpEndpoint(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
-                />
+            {activeTab === 'http' ? (
+              <div className="space-y-4 font-mono text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Agent Name</label>
+                    <input
+                      type="text"
+                      value={httpName}
+                      onChange={(e) => setHttpName(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Endpoint URL</label>
+                    <input
+                      type="text"
+                      value={httpEndpoint}
+                      onChange={(e) => setHttpEndpoint(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">HTTP Method</label>
+                    <select
+                      value={httpMethod}
+                      onChange={(e) => setHttpMethod(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    >
+                      <option value="POST">POST</option>
+                      <option value="GET">GET</option>
+                      <option value="PUT">PUT</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Timeout (seconds)</label>
+                    <input
+                      type="number"
+                      value={httpTimeout}
+                      onChange={(e) => setHttpTimeout(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Input Field (JSON Path)</label>
+                    <input
+                      type="text"
+                      value={httpInputField}
+                      onChange={(e) => setHttpInputField(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-zinc-500 uppercase font-bold">Output Field (JSON Path)</label>
+                    <input
+                      type="text"
+                      value={httpOutputField}
+                      onChange={(e) => setHttpOutputField(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
+                    />
+                  </div>
+                </div>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">HTTP Method</label>
-                <select
-                  value={httpMethod}
-                  onChange={(e) => setHttpMethod(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 text-zinc-200 text-xs py-2 px-3 rounded-lg focus:outline-none"
-                >
-                  <option value="POST">POST</option>
-                  <option value="GET">GET</option>
-                  <option value="PUT">PUT</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Timeout (seconds)</label>
-                <input
-                  type="number"
-                  value={httpTimeout}
-                  onChange={(e) => setHttpTimeout(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Request Input Field (JSON Path)</label>
-                <input
-                  type="text"
-                  value={httpInputField}
-                  onChange={(e) => setHttpInputField(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Response Output Field (JSON Path)</label>
-                <input
-                  type="text"
-                  value={httpOutputField}
-                  onChange={(e) => setHttpOutputField(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Python Agent */}
-        {activeTab === 'python' && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-200 font-mono">Python Agent Local Execution</h2>
-              <p className="text-xs text-zinc-400 font-mono mt-1 leading-relaxed">
-                For security reasons, arbitrary Python scripts cannot be executed directly within the web process. However, you can run them safely in your own terminal using our local loader!
-              </p>
-            </div>
-
-            {/* Warning block */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex gap-3 text-[11px] font-mono text-amber-400">
-              <AlertCircle className="h-5 w-5 flex-shrink-0" />
-              <div className="space-y-1">
-                <div className="font-semibold uppercase">Security Limit Alert</div>
-                <p className="leading-relaxed">
-                  Executing user-provided Python scripts poses severe file deletion, secret leak, and process injection risks. Expose your agent via a local HTTP endpoint, or use the CLI command below to run the assessment locally.
-                </p>
-              </div>
-            </div>
-
-            {/* Dynamic CLI helper */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-semibold text-zinc-300 font-mono uppercase tracking-wider">CLI Command Builder</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
+            ) : (
+              <div className="space-y-4 font-mono text-xs">
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-zinc-500 uppercase font-bold">Python File Path</label>
                   <input
                     type="text"
                     value={pyPath}
                     onChange={(e) => setPyPath(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-zinc-500 uppercase font-bold">Adapter Class Name</label>
+                  <label className="text-[10px] text-zinc-500 uppercase font-bold">Agent Class Name</label>
                   <input
                     type="text"
                     value={pyClass}
                     onChange={(e) => setPyClass(e.target.value)}
-                    placeholder="CustomAgentAdapter"
-                    className="w-full bg-zinc-950 border border-zinc-800 hover:border-zinc-700 focus:border-emerald-500 focus:outline-none text-xs py-2 px-3 rounded-lg text-zinc-200"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 focus:outline-none py-2 px-3 rounded-lg text-zinc-200 text-xs"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Generated command terminal */}
-              <div className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 flex items-center justify-between font-mono text-xs text-zinc-300">
-                <div className="overflow-x-auto whitespace-nowrap pr-4 scrollbar-thin">
-                  <span className="text-emerald-400">$ </span>
-                  {buildPythonCommand()}
+            {/* Evaluate Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={runEvaluation}
+                disabled={running}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-650 text-zinc-950 px-6 py-3 rounded-xl font-mono text-xs font-bold transition duration-200 active:scale-[0.98] shadow-lg shadow-emerald-500/10"
+              >
+                <Play className="h-4 w-4 fill-current" />
+                [ Evaluate Agent ]
+              </button>
+            </div>
+
+          </div>
+
+          {/* Success Panel */}
+          {successMetrics && (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-6 font-mono">
+              <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                <h2 className="text-sm font-bold text-zinc-100">Evaluation Success</h2>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-zinc-500 uppercase">Score</span>
+                  <div className="text-lg font-bold text-zinc-100">{successMetrics.score.toFixed(1)}%</div>
                 </div>
+                <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-zinc-500 uppercase">Grade</span>
+                  <div className="text-lg font-bold text-zinc-100">{successMetrics.grade}</div>
+                </div>
+                <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-zinc-500 uppercase">Risk Level</span>
+                  <div className={`text-xs font-bold uppercase py-1 ${
+                    successMetrics.riskLevel === 'CRITICAL' || successMetrics.riskLevel === 'HIGH'
+                      ? 'text-rose-400'
+                      : 'text-amber-400'
+                  }`}>{successMetrics.riskLevel}</div>
+                </div>
+                <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl text-center space-y-1">
+                  <span className="text-[10px] text-zinc-500 uppercase">Scenarios</span>
+                  <div className="text-lg font-bold text-zinc-100">{successMetrics.totalScenarios}</div>
+                </div>
+              </div>
+
+              {/* Scenarios Split Table */}
+              <div className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 text-[11px] space-y-2 text-zinc-400">
+                <div className="flex justify-between border-b border-zinc-900 pb-1.5">
+                  <span>Passed Scenarios:</span>
+                  <span className="text-emerald-400 font-bold">{successMetrics.passedScenarios}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-900 pb-1.5">
+                  <span>Failed Scenarios:</span>
+                  <span className="text-rose-400 font-bold">{successMetrics.failedScenarios}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Inconclusive Scenarios:</span>
+                  <span className="text-zinc-500 font-bold">{successMetrics.inconclusiveScenarios}</span>
+                </div>
+              </div>
+
+              {/* Covered Strategies */}
+              <div className="space-y-2">
+                <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Covered Attack Strategies</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {successMetrics.coveredStrategies.length > 0 ? (
+                    successMetrics.coveredStrategies.map(strat => (
+                      <span key={strat} className="bg-zinc-950 border border-zinc-850 text-zinc-400 text-[10px] px-2.5 py-1 rounded-md">
+                        {strat}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-zinc-500 text-xs italic">No strategies covered.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center bg-zinc-950 border border-zinc-850 p-3.5 rounded-xl text-[10px]">
+                <div className="text-zinc-500">Run ID: <span className="text-zinc-400">{successMetrics.runId}</span></div>
                 <button
-                  onClick={() => copyToClipboard(buildPythonCommand())}
-                  className="flex-shrink-0 bg-zinc-900 border border-zinc-850 hover:bg-zinc-800 hover:text-zinc-100 text-zinc-400 p-2 rounded-lg transition"
-                  title="Copy command"
+                  onClick={viewReport}
+                  className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:text-zinc-100 text-zinc-300 px-4 py-2 rounded-lg font-bold transition"
                 >
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                  <Eye className="h-3.5 w-3.5" />
+                  View Full Report
                 </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* Failure Alert */}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/35 rounded-2xl p-5 flex gap-4 text-xs font-mono text-red-400 shadow-lg shadow-red-500/5">
+              <AlertCircle className="h-6 w-6 flex-shrink-0 text-red-500" />
+              <div className="space-y-1">
+                <div className="font-bold uppercase tracking-wider text-red-200">Evaluation Execution Failed</div>
+                <p className="leading-relaxed text-zinc-300">{error}</p>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* How it works sidebar panel */}
+        <div className="space-y-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-xl font-mono text-xs space-y-4">
+            <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+              <Shield className="h-4.5 w-4.5 text-emerald-400" />
+              <span className="font-bold text-zinc-100 uppercase tracking-wider">How it works</span>
+            </div>
+
+            <div className="space-y-6 relative">
+              <div className="flex gap-3">
+                <div className="h-6 w-6 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-[10px] text-zinc-300 flex-shrink-0">
+                  1
+                </div>
+                <div className="space-y-1">
+                  <div className="font-bold text-zinc-200">Agent Adapter</div>
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
+                    Connects to your agent via custom local Python adapter script or external REST endpoint.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-6 w-6 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-[10px] text-zinc-300 flex-shrink-0">
+                  2
+                </div>
+                <div className="space-y-1">
+                  <div className="font-bold text-zinc-200">Adversarial Tests</div>
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
+                    Automatically scans the agent prompt/tools and constructs targeted security pressure packs.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-6 w-6 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-[10px] text-zinc-300 flex-shrink-0">
+                  3
+                </div>
+                <div className="space-y-1">
+                  <div className="font-bold text-zinc-200">Sandbox Execution</div>
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
+                    Safely executes the scenarios inside isolated environment sandboxes recording complete traces.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="h-6 w-6 bg-zinc-800 rounded-full flex items-center justify-center font-bold text-[10px] text-zinc-300 flex-shrink-0">
+                  4
+                </div>
+                <div className="space-y-1">
+                  <div className="font-bold text-zinc-200">Reliability Score</div>
+                  <p className="text-[10px] text-zinc-400 leading-relaxed">
+                    Aggregates verdicts, extracts critical findings, scores metrics, and recommends fixes.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Adapter template block */}
-            <div className="space-y-2">
-              <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider font-mono">Agent Interface Contract</span>
-              <pre className="bg-zinc-950 border border-zinc-850 rounded-xl p-4 text-[10px] leading-relaxed text-zinc-400 overflow-x-auto max-h-48 scrollbar-thin font-mono">
-                {pythonTemplateCode}
-              </pre>
+            <div className="bg-zinc-950 border border-zinc-850 p-4 rounded-xl text-zinc-400 text-[10px] leading-relaxed">
+              <strong>Demo Tip:</strong> To E2E test the HTTP Agent, run `python agents/sample_http_agent.py` in your terminal, then query it here.
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Running loader / status indicator */}
-        {running && (
-          <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-zinc-300 font-mono p-6 text-center z-20">
-            <Loader2 className="h-10 w-10 text-emerald-500 animate-spin mb-4" />
-            <div className="text-sm font-semibold text-zinc-200">Evaluation Execution Running</div>
-            <div className="text-[11px] text-zinc-400 mt-2">{progressMsg}</div>
-          </div>
-        )}
-
-        {/* Success block */}
-        {success && (
-          <div className="absolute inset-0 bg-zinc-950/90 backdrop-blur-sm flex flex-col items-center justify-center text-zinc-300 font-mono p-6 text-center z-20">
-            <CheckCircle2 className="h-12 w-12 text-emerald-400 mb-4" />
-            <div className="text-sm font-bold text-zinc-100">Assessment Run Completed!</div>
-            <p className="text-[11px] text-zinc-400 mt-2 max-w-sm leading-relaxed">
-              {success.message}
-            </p>
-            <p className="text-[10px] text-zinc-500 mt-4">
-              Redirecting you to the dashboard views to audit the trace results...
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* API Error Notification */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/35 rounded-xl p-4 flex gap-3 text-xs font-mono text-red-400">
-          <AlertCircle className="h-5 w-5 flex-shrink-0" />
-          <div className="space-y-1">
-            <div className="font-semibold uppercase">API execution failed</div>
-            <p className="leading-relaxed">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Action Button for running built-in or HTTP evaluation */}
-      {activeTab !== 'python' && (
-        <div className="flex justify-end">
-          <button
-            onClick={runEvaluation}
-            disabled={running}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 disabled:text-zinc-650 text-zinc-950 hover:text-zinc-950 px-6 py-3.5 rounded-xl font-mono text-xs font-bold transition duration-200 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-[0.98]"
-          >
-            <Play className="h-4.5 w-4.5 fill-current" />
-            [ Run Assessment ]
-          </button>
-        </div>
-      )}
     </div>
   );
 }
