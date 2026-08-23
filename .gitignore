@@ -182,6 +182,14 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
-# Project-specific
+# Project-specific generated evaluation data and traces
+data/adaptive/
+data/assessments/
+data/challenge_packs/
+data/evaluations/
+data/regression/
+data/reliability/
+data/runs/
+data/baseline.json
 data/*.db
-traces/*.json
+traces/

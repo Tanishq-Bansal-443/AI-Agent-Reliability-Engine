@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AARE Security Intelligence Web Dashboard
 
-## Getting Started
+This is the presentation, exploration, and playground interface for the AI Agent Reliability Engine (AARE), built with Next.js, TypeScript, Tailwind CSS, and shadcn/ui.
 
-First, run the development server:
+## 🚀 Getting Started
+
+First, ensure the FastAPI backend is running on `127.0.0.1:8000`.
+
+Then, install dependencies and launch the dev server:
 
 ```bash
+# 1. Install dependencies
+npm install
+
+# 2. Run the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to explore the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🏗️ Core Views & Components
 
-## Learn More
+1. **Dashboard Overview (`/`)**:
+   - Visualizes overall security score, grade, pass rates, risk level, and failure breakdowns.
+   - Highlights priority testing recommendations.
+   - Links to active run assessments via query parameter `?assessmentId=<run_id>`.
 
-To learn more about Next.js, take a look at the following resources:
+2. **Evaluate Playground (`/evaluate`)**:
+   - Allows judges and developers to run evaluations on custom agents.
+   - **HTTP/API Agent tab**: Connects to external API agent endpoints (e.g. `http://127.0.0.1:5000/chat`).
+   - **Python Agent tab**: Evaluates custom local Python classes dynamically via modular file paths.
+   - Displays live execution logging and progress indicators.
+   - Handles network timeouts (125 seconds limit) and shows troubleshooting guidelines when failures occur.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. **Assessment History (`/assessments`)**:
+   - Searchable, sortable listing of historical reliability runs.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4. **Traces Explorer (`/traces?traceId=...`)**:
+   - Chronological event timeline showing exact user prompts, model outputs, tool calls, and result payloads (collapsible and sanitized).
 
-## Deploy on Vercel
+5. **Regression Explorer (`/regression`)**:
+   - Compares previous vs current assessments to detect verdict shifts, score deltas, and failure severity movements.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+6. **Adaptive Intelligence (`/adaptive`)**:
+   - Visualizes planned testing budgets, coverage gaps, and addressed strategies.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+7. **Artifacts Debugger (`/artifacts`)**:
+   - Tree representation verifying artifact references and listing raw JSON data.
+
+---
+
+## 🧪 Testing
+
+We run frontend integration suites using Vitest. To run the tests:
+
+```bash
+npm run test
+```

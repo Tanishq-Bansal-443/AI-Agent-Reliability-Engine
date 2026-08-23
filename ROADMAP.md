@@ -3,20 +3,20 @@
 ## Overview
 
 ```
-Phase 0  — Foundation + Core Contracts
-Phase 1  — Vertical Slice
-Phase 2  — Profiler
-Phase 3  — Scenario Engine
-Phase 4  — Sandbox + Execution
-Phase 5  — Evaluation
-Phase 6  — Failure Intelligence
-Phase 7  — Reliability Scoring
-Phase 8  — Regression
-Phase 9  — Dashboard
-Phase 10 — Adaptive Testing
-Phase 11 — Version Comparison
-Phase 12 — Predictive Reliability
-Phase 13 — Polish + Demo
+Phase 0  — Foundation + Core Contracts (Complete)
+Phase 1  — Vertical Slice (Complete)
+Phase 2  — Profiler (Complete)
+Phase 3  — Scenario Engine (Complete)
+Phase 4  — Sandbox + Execution (Complete)
+Phase 5  — Evaluation (Complete)
+Phase 6  — Failure Intelligence (Complete)
+Phase 7  — Reliability Scoring (Complete)
+Phase 8  — Regression (Complete)
+Phase 9  — Dashboard (Complete)
+Phase 10 — Adaptive Testing (Complete)
+Phase 11 — Version Comparison (Complete)
+Phase 12 — Predictive Reliability (Future)
+Phase 13 — Polish + Demo (Complete)
 ```
 
 ---
@@ -28,12 +28,12 @@ Phase 13 — Polish + Demo
 **Dependencies**: None.
 
 **Tasks**:
-- [ ] Repo layout and package scaffold
-- [ ] All core Pydantic models (`AgentProfile`, `Scenario`, `ExecutionTrace`, `EvaluationResult`, `ReliabilityScore`, `RegressionCase`)
-- [ ] Abstract base classes (`BaseLLMProvider`, `BaseAgentAdapter`, `BaseSandbox`, `BaseEvaluator`)
-- [ ] `ToolRuntime` / `ToolRegistry` skeleton
-- [ ] Project-level configuration (env vars, settings)
-- [ ] Unit tests for all contracts
+- [x] Repo layout and package scaffold
+- [x] All core Pydantic models (`AgentProfile`, `Scenario`, `ExecutionTrace`, `EvaluationResult`, `ReliabilityScore`, `RegressionCase`)
+- [x] Abstract base classes (`BaseLLMProvider`, `BaseAgentAdapter`, `BaseSandbox`, `BaseEvaluator`)
+- [x] `ToolRuntime` / `ToolRegistry` skeleton
+- [x] Project-level configuration (env vars, settings)
+- [x] Unit tests for all contracts
 
 **Definition of Done**: All models instantiate without error. All abstract classes are defined. All tests pass.
 
@@ -48,11 +48,11 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 0.
 
 **Tasks**:
-- [ ] `DemoAgentAdapter` — hardcoded, controllable responses
-- [ ] `LocalMockSandbox` — in-process execution, no real tool side effects
-- [ ] `DeterministicEvaluator` — rule-based pass/fail
-- [ ] CLI script: profile → generate one scenario → execute → evaluate → print result
-- [ ] Integration test covering full loop
+- [x] `DemoAgentAdapter` — hardcoded, controllable responses
+- [x] `LocalMockSandbox` — in-process execution, no real tool side effects
+- [x] `DeterministicEvaluator` — rule-based pass/fail
+- [x] CLI script: profile → generate one scenario → execute → evaluate → print result
+- [x] Integration test covering full loop
 
 **Definition of Done**: A single scenario runs end-to-end and produces an `EvaluationResult`. No mocking of internal interfaces.
 
@@ -67,11 +67,11 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 1.
 
 **Tasks**:
-- [ ] Static profile loader (YAML/JSON input)
-- [ ] Adapter-introspection profiler
-- [ ] LLM-assisted profiler (optional enhancement)
-- [ ] `RiskSurface` derivation from profile
-- [ ] Tests for each profiler type
+- [x] Static profile loader (YAML/JSON input)
+- [x] Adapter-introspection profiler
+- [x] LLM-assisted profiler (optional enhancement)
+- [x] `RiskSurface` derivation from profile
+- [x] Tests for each profiler type
 
 **Definition of Done**: Given a YAML agent description, the profiler produces a valid `AgentProfile` with a `RiskSurface`.
 
@@ -86,12 +86,12 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 2.
 
 **Tasks**:
-- [ ] `ScenarioGenerator` base class
-- [ ] Template-based scenario generator (deterministic)
-- [ ] LLM-assisted scenario generator
-- [ ] `ChallengePack` builder
-- [ ] Scenario serialization / deserialization
-- [ ] Tests for scenario generation
+- [x] `ScenarioGenerator` base class
+- [x] Template-based scenario generator (deterministic)
+- [x] LLM-assisted scenario generator
+- [x] `ChallengePack` builder
+- [x] Scenario serialization / deserialization
+- [x] Tests for scenario generation
 
 **Definition of Done**: Given an `AgentProfile`, the engine generates a valid `ChallengePack` with scenarios across at least 3 categories.
 
@@ -106,15 +106,15 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 3.
 
 **Tasks**:
-- [ ] `LocalMockSandbox` — complete implementation
-- [ ] `ToolRuntime` and `ToolRegistry` — full implementation
-- [ ] Tool call routing (no `unittest.mock`)
-- [ ] `Tracer` — capture all steps into `ExecutionTrace`
-- [ ] Trace serialization to JSON
-- [ ] Trace indexing in SQLite
-- [ ] Tests for sandbox execution and tracing
+- [x] `LocalMockSandbox` — complete implementation
+- [x] `ToolRuntime` and `ToolRegistry` — full implementation
+- [x] Tool call routing (no `unittest.mock`)
+- [x] `Tracer` (telemetry tracing) — capture all steps into `ExecutionTrace`
+- [x] Trace serialization to JSON
+- [x] File-system trace index and resolving
+- [x] Tests for sandbox execution and tracing
 
-**Definition of Done**: Every scenario execution produces a complete `ExecutionTrace` persisted to disk and indexed in SQLite.
+**Definition of Done**: Every scenario execution produces a complete `ExecutionTrace` persisted to disk.
 
 **Demo Capability**: Execute a challenge pack and inspect the resulting traces.
 
@@ -127,13 +127,13 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 4.
 
 **Tasks**:
-- [ ] `DeterministicEvaluator` — complete implementation
-- [ ] `LLMJudgeEvaluator` — semantic evaluation via `BaseLLMProvider`
-- [ ] `CompositeEvaluator` — weighted combination
-- [ ] `EvaluationResult` persistence
-- [ ] Gemini provider implementation
-- [ ] OpenAI provider implementation
-- [ ] Tests for each evaluator type
+- [x] `DeterministicEvaluator` — complete implementation
+- [x] `LLMJudgeEvaluator` — semantic evaluation via `BaseLLMProvider`
+- [x] `CompositeEvaluator` — weighted combination
+- [x] `EvaluationResult` persistence (file-based JSON)
+- [x] Gemini provider implementation
+- [x] OpenAI provider implementation
+- [x] Tests for each evaluator type
 
 **Definition of Done**: Traces from the demo agent are evaluated and produce `EvaluationResult` records with accurate pass/fail and scores.
 
@@ -148,11 +148,11 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 5.
 
 **Tasks**:
-- [ ] `Diagnoser` — LLM-assisted failure explanation
-- [ ] `FailureDetail` enrichment
-- [ ] Failure taxonomy classification
-- [ ] Failure summary generation
-- [ ] Tests for diagnosis accuracy
+- [x] `Diagnoser` — failure explanation
+- [x] `FailureDetail` enrichment
+- [x] Failure taxonomy classification
+- [x] Failure summary generation
+- [x] Tests for diagnosis accuracy
 
 **Definition of Done**: Every failed `EvaluationResult` has a human-readable explanation with a classified `FailureCategory`.
 
@@ -167,11 +167,11 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 6.
 
 **Tasks**:
-- [ ] `Scorer` — compute overall score, pass rate, severity breakdown, category breakdown
-- [ ] `RiskLevel` classification logic
-- [ ] Recommendations generation
-- [ ] Score persistence in SQLite
-- [ ] Tests for scoring logic
+- [x] `Scorer` — compute overall score, pass rate, severity breakdown, category breakdown
+- [x] `RiskLevel` classification logic
+- [x] Recommendations generation
+- [x] Score persistence in JSON artifacts (managed by `ArtifactStore`)
+- [x] Tests for scoring logic
 
 **Definition of Done**: Any completed evaluation run produces a `ReliabilityScore` with a `RiskLevel` and recommendations.
 
@@ -186,11 +186,11 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 7.
 
 **Tasks**:
-- [ ] `RegressionStore` — persist and load `RegressionCase` records
-- [ ] Automatic regression case creation from failures
-- [ ] Regression suite management (create, list, run)
-- [ ] Regression run output: pass/fail delta vs. previous run
-- [ ] Tests for regression lifecycle
+- [x] `RegressionStore` / `ArtifactStore` — persist and load `RegressionCase` records
+- [x] Automatic regression case creation from failures
+- [x] Regression suite management (create, list, run)
+- [x] Regression run output: pass/fail delta vs. previous run
+- [x] Tests for regression lifecycle
 
 **Definition of Done**: Failures from Phase 7 are stored as regression cases and re-runnable against any new agent version.
 
@@ -205,14 +205,14 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 8.
 
 **Tasks**:
-- [ ] Next.js project setup with TypeScript, Tailwind CSS, shadcn/ui, Recharts
-- [ ] FastAPI REST API for all backend data
-- [ ] Dashboard: reliability score overview
-- [ ] Dashboard: evaluation run results table
-- [ ] Dashboard: failure breakdown by category
-- [ ] Dashboard: scenario detail view with trace
-- [ ] Dashboard: regression suite status
-- [ ] Responsive design
+- [x] Next.js project setup with TypeScript, Tailwind CSS, shadcn/ui, Recharts
+- [x] FastAPI REST API for all backend data
+- [x] Dashboard: reliability score overview
+- [x] Dashboard: evaluation run results table
+- [x] Dashboard: failure breakdown by category
+- [x] Dashboard: scenario detail view with trace
+- [x] Dashboard: regression suite status
+- [x] Responsive design
 
 **Definition of Done**: The dashboard displays a complete evaluation run with score, failures, and regression status. All data comes from the API.
 
@@ -227,10 +227,10 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 9.
 
 **Tasks**:
-- [ ] `AdaptiveAttackStrategy` — analyze historical results
-- [ ] Scenario mutation engine
-- [ ] Coverage tracking
-- [ ] Adaptive challenge pack generation
+- [x] `AdaptiveAttackStrategy` — analyze historical results via `AdaptiveRegressionAnalyzer`
+- [x] Scenario mutation/variant generation
+- [x] Coverage tracking and allocations
+- [x] Adaptive challenge pack generation
 
 **Definition of Done**: The engine generates a follow-up challenge pack that specifically targets previously observed weaknesses.
 
@@ -243,10 +243,10 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 10.
 
 **Tasks**:
-- [ ] Version tagging for evaluation runs
-- [ ] Side-by-side score comparison
-- [ ] Regression delta (new failures vs. fixed failures)
-- [ ] Trend visualization in dashboard
+- [x] Version tagging for evaluation runs
+- [x] Side-by-side score comparison
+- [x] Regression delta (new failures vs. fixed failures)
+- [x] Trend visualization in dashboard
 
 **Definition of Done**: Dashboard shows side-by-side reliability comparison for two agent versions.
 
@@ -275,10 +275,10 @@ Phase 13 — Polish + Demo
 **Dependencies**: Phase 12.
 
 **Tasks**:
-- [ ] UI polish and accessibility
-- [ ] Performance optimization
-- [ ] Demo script and sample data
-- [ ] Documentation
-- [ ] README with quickstart
+- [x] UI polish and accessibility
+- [x] Performance optimization
+- [x] Demo script and sample data
+- [x] Documentation
+- [x] README with quickstart
 
-**Definition of Done**: A first-time user can clone the repo, run `docker compose up`, and see a complete demo evaluation in the browser.
+**Definition of Done**: A first-time user can clone the repo, run the FastAPI backend, launch Next.js, and evaluate custom HTTP/Python agents in the playground.

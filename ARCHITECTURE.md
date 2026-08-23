@@ -68,7 +68,7 @@ PROFILE
                          │
 ┌────────────────────────▼────────────────────────────┐
 │                   Storage Layer                      │
-│           SQLite (metadata) + JSON (traces)          │
+│     File-based JSON Artifacts (via ArtifactStore)    │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -78,21 +78,22 @@ PROFILE
 
 | Package | Responsibility |
 |---|---|
-| `core/` | Shared contracts, base classes, Pydantic models — zero provider dependencies |
-| `profiler/` | Analyze agent capabilities and produce a structured `AgentProfile` |
-| `scenario/` | Generate `Scenario` objects from risk profiles |
-| `sandbox/` | Execute scenarios in isolation via `BaseSandbox` |
-| `tracer/` | Capture and serialize `ExecutionTrace` objects |
-| `evaluator/` | Score traces against expected outcomes |
-| `diagnoser/` | Explain failures in human-readable form |
-| `scorer/` | Produce `ReliabilityScore` from evaluation results |
-| `regression/` | Persist and load regression test cases |
-| `adapters/llm/` | Provider-specific LLM implementations |
-| `adapters/agent/` | Agent-specific adapter implementations |
-| `adapters/sandbox/` | Sandbox-specific implementations (Docker, E2B) |
-| `api/` | FastAPI routers, request/response schemas |
-| `db/` | SQLite repositories — no business logic |
-| `frontend/` | Next.js application |
+| `packages/core` | Base interfaces (`BaseLLMProvider`, `BaseAgentAdapter`, `BaseSandbox`, `BaseEvaluator`) and core Pydantic models (`Agent`, `Scenario`, `Trace`, `EvaluationResult`, `ReliabilityScore`, `RegressionCase`, `AdaptiveTestPlan`). |
+| `packages/profiler` | Analyze agent capabilities statically and with LLM inference to produce an `AgentProfile`. |
+| `packages/scenario_engine` | Generate baseline scenarios and build `ChallengePack` collections. |
+| `packages/sandbox` | Sandbox isolated environments, fake tool runtimes, and local mock execute bounds. |
+| `packages/tracing` | telemetry recorders, sanitization logic (`SecretSanitizer`), and transaction traces. |
+| `packages/evaluator` | Validate trajectory correctness via `DeterministicEvaluator` and semantic `LLMJudgeEvaluator`. |
+| `packages/reliability` | Score aggregated runs, compute grade, confidence, and vulnerability risks (`ReliabilityScorer`). |
+| `packages/regression` | Compute differential delta comparison metrics and orchestrate the `AdaptiveRegressionAnalyzer` loop. |
+| `packages/agent_adapters` | Expose custom HTTP adapters (`HTTPAgentAdapter`), local python class loaders, and demo support adapters. |
+| `packages/artifacts` | Manage file system read/write serialization, path validation, and SHA-256 integrity checksums (`ArtifactStore`). |
+| `packages/cli` | Orchestrate evaluations, compare baseline regression gates, and format console/markdown reports. |
+| `packages/execution` | Manage executor schedules and challenge pack orchestration. |
+| `packages/shared` | Core shared utilities and mock patterns. |
+| `apps/api` | REST API layer exposing FastAPI endpoints for execution triggers. |
+| `apps/web` | Next.js presentation frontend application dashboard. |
+| `agents/` | Sample HTTP agent endpoints and custom agent adapters. |
 
 ---
 
@@ -306,46 +307,22 @@ class RegressionCase(BaseModel):
 
 ## 14. Adaptive Testing
 
-The adaptive testing engine closes the loop by learning from previous evaluation runs.
-
-**Inputs**:
-- Historical `EvaluationResult` records
-- `ReliabilityScore` trends across agent versions
-- `RegressionCase` library
-
-**Outputs**:
-- Updated attack strategies
-- Newly generated scenarios targeting observed weaknesses
-- Prioritization weights for scenario categories
-
-**Implementation**: Phase 10. Do not implement prematurely.
+The adaptive testing engine closes the loop by learning from previous evaluation runs dynamically during execution loops:
+- **Historical Analysis**: Scores and findings are loaded by `AdaptiveRegressionAnalyzer` to find priority strategies.
+- **Budget Allocation**: Distributes test budgets deterministically across strategies via Largest Remainder Method.
+- **Targeted Scenario Mutation**: Appends variations of failed, inconclusive, or high-risk tool scenarios to verify vulnerabilities.
+- **Stop Controls**: Terminate testing early if baseline runs pass cleanly, preserving safety limits.
 
 ---
 
 ## 15. Future Architecture
 
-### Phase 10 — Adaptive Testing Engine
-- `AdaptiveAttackStrategy` — learns which attack vectors are most effective per agent class
-- Scenario mutation: generate variants of known-failing scenarios
-- Coverage tracking: ensure diverse failure mode exploration
-
-### Phase 11 — Version Comparison
-- Side-by-side `ReliabilityScore` comparison across agent versions
-- Regression delta: new failures introduced vs. failures fixed
-- Improvement trend visualization
-
 ### Phase 12 — Predictive Reliability
-- Train lightweight classifier on trace features to predict failure probability before execution
-- Risk forecasting: "This scenario has 87% probability of failure"
-- Prioritize high-risk scenarios for limited evaluation budgets
-
-### Phase 13 — External Integrations
-- CI/CD integration (GitHub Actions, GitLab CI)
-- Webhook notifications on reliability degradation
-- Slack/PagerDuty alerts for CRITICAL risk level
-- Export formats: JUnit XML, SARIF
+- Train lightweight classifier on trace features to predict failure probability before execution.
+- Risk forecasting: "This scenario has 87% probability of failure".
+- Prioritize high-risk scenarios for limited evaluation budgets.
 
 ### Phase 14 — Multi-Agent Systems
-- Evaluate agent-to-agent trust boundaries
-- Orchestrator/subagent failure propagation
-- Shared tool registry across agent network
+- Evaluate agent-to-agent trust boundaries.
+- Orchestrator/subagent failure propagation.
+- Shared tool registry across agent network.
