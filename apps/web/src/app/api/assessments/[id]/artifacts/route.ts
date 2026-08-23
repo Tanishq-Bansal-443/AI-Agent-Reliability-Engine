@@ -34,7 +34,7 @@ export async function GET(
           type: 'Execution Run',
           id: assessment.execution_run_id,
           ...checkArtifactExistence('Execution Run', assessment.execution_run_id),
-          children: assessment.trace_ids.map(tId => ({
+          children: (assessment.trace_ids || []).map((tId: string) => ({
             type: 'Trace',
             id: tId,
             ...checkArtifactExistence('Trace', tId)
