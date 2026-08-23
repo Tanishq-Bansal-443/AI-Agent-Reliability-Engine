@@ -8,5 +8,8 @@ See ADR-008 in DECISIONS.md.
 """
 
 from packages.agent_adapters.base import BaseAgentAdapter
+from packages.agent_adapters.http import HTTPAgentAdapter
+from packages.agent_adapters.python import load_python_agent
 
-__all__ = ["BaseAgentAdapter"]
+__all__ = ["BaseAgentAdapter", "HTTPAgentAdapter", "load_python_agent"]
+

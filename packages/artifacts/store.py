@@ -67,7 +67,7 @@ class ArtifactStore:
             sanitized_data = sanitize_data(data)
             with open(temp_filepath, "w", encoding="utf-8") as f:
                 json.dump(sanitized_data, f, indent=2, default=str)
-            temp_filepath.rename(filepath)
+            temp_filepath.replace(filepath)
         except Exception:
             if temp_filepath.exists():
                 temp_filepath.unlink()

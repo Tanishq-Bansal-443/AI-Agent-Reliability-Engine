@@ -48,11 +48,45 @@ def resolve_agent_adapter(agent_id: str) -> BaseAgentAdapter:
     Resolve agent ID string to a concrete agent adapter instance.
     """
     normalized_id = agent_id.replace("-", "_").lower()
-    if normalized_id == "demo_customer_support":
+    if normalized_id in ("demo_customer_support", "demo_customer_support_v1"):
         from agents.demo_customer_support.adapter import DemoAgentAdapter
         return DemoAgentAdapter()
     else:
         raise ValueError(f"Unknown agent: '{agent_id}'")
+
+
+def resolve_agent_adapter_cli(args: argparse.Namespace) -> BaseAgentAdapter:
+    """
+    Resolve CLI arguments to a concrete agent adapter instance.
+    """
+    agent_type = getattr(args, "agent_type", "built-in")
+    if agent_type == "built-in":
+        if not getattr(args, "agent", None):
+            raise ValueError("--agent is required for built-in agent type")
+        return resolve_agent_adapter(args.agent)
+    elif agent_type == "http":
+        if not getattr(args, "agent_url", None):
+            raise ValueError("--agent-url is required for http agent type")
+        from packages.agent_adapters.http import HTTPAgentAdapter
+        from urllib.parse import urlparse
+        parsed = urlparse(args.agent_url)
+        agent_id = parsed.netloc.replace(":", "_").replace(".", "_") or "http_agent"
+        return HTTPAgentAdapter(
+            endpoint_url=args.agent_url,
+            method=getattr(args, "agent_method", "POST"),
+            timeout=getattr(args, "agent_timeout", 10.0),
+            request_input_field=getattr(args, "agent_input_field", "message"),
+            response_output_field=getattr(args, "agent_output_field", "response"),
+            agent_id=agent_id,
+            agent_name=f"HTTP Agent ({parsed.netloc})",
+        )
+    elif agent_type == "python":
+        if not getattr(args, "agent_path", None):
+            raise ValueError("--agent-path is required for python agent type")
+        from packages.agent_adapters.python import load_python_agent
+        return load_python_agent(args.agent_path, getattr(args, "agent_class", None))
+    else:
+        raise ValueError(f"Unknown agent type: '{agent_type}'")
 
 
 def str_to_bool(val: str) -> bool:
@@ -63,7 +97,7 @@ def str_to_bool(val: str) -> bool:
 async def handle_assess(args: argparse.Namespace) -> int:
     """Run a complete reliability assessment."""
     try:
-        adapter = resolve_agent_adapter(args.agent)
+        adapter = resolve_agent_adapter_cli(args)
         if args.version:
             adapter = VersionOverriddenAgentAdapter(adapter, args.version)
     except ValueError as exc:
@@ -459,7 +493,7 @@ async def handle_watch(args: argparse.Namespace) -> int:
     assess_args = argparse.Namespace(**vars(args))
     assess_args.previous = baseline_id
     # Default agent if not specified
-    if not getattr(assess_args, "agent", None):
+    if not getattr(assess_args, "agent", None) and getattr(assess_args, "agent_type", "built-in") == "built-in":
         assess_args.agent = "demo_customer_support"
 
     return await handle_assess(assess_args)
@@ -474,8 +508,16 @@ async def async_main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # 1. Assess parser
-    parser_assess = subparsers.add_parser("assess", help="Run a complete reliability assessment")
-    parser_assess.add_argument("--agent", required=True, help="Agent adapter ID")
+    parser_assess = subparsers.add_parser("assess", help="Run a complete reliability assessment (Built-in, HTTP, or Python)")
+    parser_assess.add_argument("--agent", help="Agent adapter ID (e.g. demo_customer_support; required for built-in type)")
+    parser_assess.add_argument("--agent-type", choices=["built-in", "http", "python"], default="built-in", help="Type of agent to evaluate")
+    parser_assess.add_argument("--agent-url", help="HTTP endpoint URL for HTTP agent (e.g. http://localhost:5000/chat)")
+    parser_assess.add_argument("--agent-method", default="POST", help="HTTP method for HTTP agent")
+    parser_assess.add_argument("--agent-timeout", type=float, default=10.0, help="Timeout in seconds for HTTP agent request")
+    parser_assess.add_argument("--agent-input-field", default="message", help="Request input JSON field path for HTTP agent")
+    parser_assess.add_argument("--agent-output-field", default="response", help="Response output JSON field path for HTTP agent")
+    parser_assess.add_argument("--agent-path", help="Python file path for custom Python agent")
+    parser_assess.add_argument("--agent-class", help="Python class name to load for custom Python agent")
     parser_assess.add_argument("--version", help="Override agent version")
     parser_assess.add_argument("--max-scenarios", type=int, help="Maximum scenarios to run")
     parser_assess.add_argument("--timeout", type=float, help="Timeout in seconds per scenario")
@@ -550,7 +592,15 @@ async def async_main(argv: list[str] | None = None) -> int:
 
     # 8. Watch parser
     parser_watch = subparsers.add_parser("watch", help="Continuous-mode trigger (one-shot cron execution)")
-    parser_watch.add_argument("--agent", default="demo_customer_support", help="Agent adapter ID")
+    parser_watch.add_argument("--agent", help="Agent adapter ID")
+    parser_watch.add_argument("--agent-type", choices=["built-in", "http", "python"], default="built-in", help="Type of agent to evaluate")
+    parser_watch.add_argument("--agent-url", help="HTTP endpoint URL for HTTP agent (e.g. http://localhost:5000/chat)")
+    parser_watch.add_argument("--agent-method", default="POST", help="HTTP method for HTTP agent")
+    parser_watch.add_argument("--agent-timeout", type=float, default=10.0, help="Timeout in seconds for HTTP agent request")
+    parser_watch.add_argument("--agent-input-field", default="message", help="Request input JSON field path for HTTP agent")
+    parser_watch.add_argument("--agent-output-field", default="response", help="Response output JSON field path for HTTP agent")
+    parser_watch.add_argument("--agent-path", help="Python file path for custom Python agent")
+    parser_watch.add_argument("--agent-class", help="Python class name to load for custom Python agent")
     parser_watch.add_argument("--version", help="Override agent version")
     parser_watch.add_argument("--max-scenarios", type=int, help="Maximum scenarios to run")
     parser_watch.add_argument("--timeout", type=float, help="Timeout in seconds per scenario")

@@ -366,7 +366,117 @@ The web dashboard is fully isolated under `apps/web`.
 
 ---
 
+---
+
+## 🔌 Bring Your Own Agent (BYOA)
+
+AARE allows developers to evaluate their custom agents through a unified adapter layer. It supports:
+1. **Built-in Agents**: Ready-to-go customer support agent.
+2. **External HTTP/API Agents**: Any agent running as a separate service (locally or in production).
+3. **Custom Python Agents**: Directly loadable Python agent adapters.
+
+---
+
+### 1. How to Start the Project
+
+First, set up your Python virtual environment and run the FastAPI server:
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Start the FastAPI backend
+python apps/api/main.py
+```
+
+Next, in another terminal, start the Next.js developer dashboard:
+```bash
+# 3. Navigate and run frontend
+cd apps/web
+npm install
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the Reliability Dashboard.
+
+---
+
+### 2. How to Run a Sample External HTTP Agent
+
+We provide a tiny, zero-dependency sample HTTP agent inside `agents/sample_http_agent.py` to test connection parameters:
+```bash
+python -m agents.sample_http_agent
+```
+This agent listens on `http://127.0.0.1:5000/chat` and processes POST requests with JSON payload `{"message": "user input"}`.
+
+---
+
+### 3. How to Connect and Run an Assessment
+
+#### Option A: Via the Web Dashboard (Recommended)
+1. Open the dashboard at [http://localhost:3000](http://localhost:3000).
+2. Click on **"Evaluate Agent"** in the sidebar navigation.
+3. Choose the **HTTP/API Agent** tab.
+4. Input your agent details:
+   - **Name**: `my_http_agent`
+   - **Endpoint**: `http://localhost:5000/chat`
+   - **HTTP Method**: `POST`
+   - **Timeout**: `10`
+   - **Request Input Field**: `message`
+   - **Response Output Field**: `response`
+5. Click **[ Run Assessment ]**.
+6. The dashboard will display the live E2E execution status, write trace files to the workspace, and automatically redirect you to view the real results.
+
+#### Option B: Via the CLI
+To test the HTTP agent:
+```bash
+python -m packages.cli.main assess --agent-type http --agent-url http://localhost:5000/chat
+```
+
+To test a custom Python agent (e.g. using the template):
+```bash
+python -m packages.cli.main assess --agent-type python --agent-path agents/custom_agent_template.py
+```
+
+---
+
+### 4. Custom Python Agent Contract
+
+To connect your own Python agent, subclass `BaseAgentAdapter` in a Python module:
+
+```python
+from packages.agent_adapters.base import BaseAgentAdapter
+from packages.core.models.agent import Agent, AgentInput, AgentOutput, AgentProfile
+from packages.sandbox.tool_runtime import ToolRuntime
+
+class CustomAgentAdapter(BaseAgentAdapter):
+    def get_agent(self) -> Agent:
+        # Define agent identity and available tools
+        return Agent(id="my_agent", name="My Agent", system_prompt="Prompt", tools=[])
+
+    def get_profile(self) -> AgentProfile:
+        # Describe capabilities and attack families
+        ...
+
+    async def run(self, agent_input: AgentInput, runtime: ToolRuntime) -> AgentOutput:
+        # Intercept tool calls through runtime and produce response
+        user_message = agent_input.messages[-1].content
+        return AgentOutput(response=f"Echo: {user_message}", tool_calls_made=[])
+```
+
+Verify your Python agent structurally via the CLI:
+```bash
+python -m packages.cli.main assess --agent-type python --agent-path your_agent.py --agent-class CustomAgentAdapter
+```
+
+---
+
+### 5. Security & Isolation Sandbox Rules
+
+* **HTTP/API Agents**: Timeout defaults to 10 seconds. Response size is strictly limited to 1MB to prevent memory exhaustion. Exposes no filesystem or telemetry paths.
+* **Python Agents**: Direct Python file execution inside the web server process is blocked for safety. Custom Python agents must be evaluated locally through the CLI or wrapped into HTTP APIs.
+
+---
+
 ## 📄 License
 
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

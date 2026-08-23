@@ -18,6 +18,7 @@ import {
   ChevronRight,
   TrendingDown,
   TrendingUp,
+  Play,
 } from 'lucide-react';
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   const menuItems = [
     { name: 'Overview', path: '/', icon: ShieldAlert },
+    { name: 'Evaluate Agent', path: '/evaluate', icon: Play },
     { name: 'Assessments', path: '/assessments', icon: History },
     { name: 'Findings', path: '/findings', icon: AlertTriangle },
     { name: 'Scenarios', path: '/scenarios', icon: FileText },
@@ -70,7 +72,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   }
 
   // Welcome state if no assessments exist
-  if (assessments.length === 0) {
+  if (assessments.length === 0 && pathname !== '/evaluate') {
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
         <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-xl p-8 shadow-2xl">

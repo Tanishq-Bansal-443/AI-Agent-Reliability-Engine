@@ -128,7 +128,7 @@ def save_trace(trace: Trace, traces_dir: str | Path = "traces") -> Path:
     try:
         with open(temp_filepath, "w", encoding="utf-8") as f:
             json.dump(sanitized_trace_data, f, indent=2, default=str)
-        temp_filepath.rename(filepath)
+        temp_filepath.replace(filepath)
     except Exception:
         if temp_filepath.exists():
             temp_filepath.unlink()
