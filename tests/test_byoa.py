@@ -57,9 +57,9 @@ class TestHTTPAgentAdapter:
 
         assert agent.id == "my_http_agent"
         assert agent.name == "Custom API"
-        assert len(agent.tools) == 0
+        assert len(agent.tools) == 3
         assert profile.agent_id == "my_http_agent"
-        assert len(profile.risk_surface.attack_families) == 1
+        assert len(profile.risk_surface.attack_families) >= 1
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient.post")

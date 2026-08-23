@@ -1,11 +1,6 @@
-"""
-Sample HTTP Agent — a minimal FastAPI agent for testing the Bring Your Own Agent (BYOA) feature.
-
-Start with:
-    python -m agents.sample_http_agent
-"""
-
-from __future__ import annotations
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import uvicorn
 from fastapi import FastAPI
@@ -27,6 +22,7 @@ class ChatResponse(BaseModel):
 
 
 @app.post("/chat", response_model=ChatResponse)
+@app.post("/", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     """
     Handle incoming messages.
@@ -43,6 +39,23 @@ async def chat(request: ChatRequest) -> ChatResponse:
         reply = f"Hello! I am your custom HTTP agent. I received your message: '{request.message}'"
 
     return ChatResponse(response=reply)
+
+
+@app.get("/agent")
+@app.get("/metadata")
+async def get_agent_details():
+    """
+    Expose prompt and tools of the agent to the profiler.
+    """
+    from agents.demo_customer_support.agent import SYSTEM_PROMPT
+    from agents.demo_customer_support.tools import CUSTOMER_SUPPORT_TOOLS
+    return {
+        "id": "sample_http_agent",
+        "name": "Sample HTTP Agent",
+        "system_prompt": SYSTEM_PROMPT,
+        "tools": [t.model_dump() for t in CUSTOMER_SUPPORT_TOOLS],
+        "version": "1.0.0"
+    }
 
 
 if __name__ == "__main__":
