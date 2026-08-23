@@ -156,6 +156,36 @@ class TestEvaluateEndpoint:
 
         assert response.status_code == 422  # Validation error
 
+    @pytest.mark.asyncio
+    async def test_evaluate_http_agent_requires_url(self) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/api/evaluate",
+                json={
+                    "agent_id": "test_http_agent",
+                    "agent_type": "http",
+                },
+            )
+        assert response.status_code == 400
+        assert "endpoint_url is required" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_evaluate_python_agent_requires_path(self) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/api/evaluate",
+                json={
+                    "agent_id": "test_py_agent",
+                    "agent_type": "python",
+                },
+            )
+        assert response.status_code == 400
+        assert "agent_path is required" in response.json()["detail"]
+
 
 class TestApiDocs:
     """Tests for OpenAPI documentation endpoints."""

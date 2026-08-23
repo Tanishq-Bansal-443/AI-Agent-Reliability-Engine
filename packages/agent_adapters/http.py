@@ -103,8 +103,8 @@ class HTTPAgentAdapter(BaseAgentAdapter):
                                 tools.append(Tool.model_validate(t_data))
                             
                             return Agent(
-                                id=data.get("id", self._agent_id),
-                                name=data.get("name", self._agent_name),
+                                id=self._agent_id if self._agent_id != "http_agent" else data.get("id", self._agent_id),
+                                name=self._agent_name if self._agent_name != "HTTP/API Agent" else data.get("name", self._agent_name),
                                 description=data.get("description", f"External HTTP/API agent at {self.endpoint_url}"),
                                 system_prompt=data.get("system_prompt", "External HTTP Agent, evaluated over HTTP."),
                                 tools=tools,
@@ -249,6 +249,7 @@ class HTTPAgentAdapter(BaseAgentAdapter):
         payload: dict[str, Any] = {}
         self._set_nested_value(payload, self.request_input_field, user_message)
 
+        logger.info(f"[HTTP Agent Adapter] Querying HTTP agent at {self.endpoint_url} with method {self.method}")
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 if self.method == "GET":

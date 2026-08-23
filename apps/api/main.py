@@ -158,6 +158,9 @@ async def evaluate(request: EvaluateRequest) -> EvaluateResponse:
     """
     Evaluate an agent against generated adversarial challenge pack scenarios.
     """
+    import logging
+    logger = logging.getLogger("uvicorn.error")
+    logger.info(f"[FastAPI] Received evaluate request: type={request.agent_type}, id={request.agent_id}")
     from fastapi import HTTPException
     from packages.engine.models import ReliabilityEngineConfig
     from packages.engine.engine import ReliabilityEngine
@@ -273,7 +276,7 @@ async def evaluate(request: EvaluateRequest) -> EvaluateResponse:
         persistence_enabled=True,
     )
     engine = ReliabilityEngine(config=engine_config)
-    
+    logger.info(f"[FastAPI] Invoking ReliabilityEngine for agent={adapter.agent_id}")
     try:
         result = await engine.assess(
             adapter=adapter,

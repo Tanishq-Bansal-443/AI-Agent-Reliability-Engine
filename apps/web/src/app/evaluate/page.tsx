@@ -48,7 +48,7 @@ export default function EvaluatePage() {
 
   // Form states: HTTP
   const [httpName, setHttpName] = useState('http_agent');
-  const [httpEndpoint, setHttpEndpoint] = useState('http://localhost:5000/chat');
+  const [httpEndpoint, setHttpEndpoint] = useState('http://127.0.0.1:5000/chat');
   const [httpMethod, setHttpMethod] = useState('POST');
   const [httpTimeout, setHttpTimeout] = useState('10');
   const [httpInputField, setHttpInputField] = useState('message');
@@ -92,16 +92,23 @@ export default function EvaluatePage() {
         setTimeout(() => setProgressMsg('Evaluating traces & running adaptive planning loops...'), 9000),
       ];
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 125000); // 125s timeout
+
+      console.log('[Frontend] Sending /api/evaluate request:', payload);
+
       const res = await fetch('/api/evaluate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
       // Clear timers
       timers.forEach(t => clearTimeout(t));
+      clearTimeout(timeoutId);
 
       const data = await res.json();
       if (!res.ok) {
@@ -123,7 +130,11 @@ export default function EvaluatePage() {
       });
 
     } catch (err: any) {
+      console.error('[Frontend] Evaluation error:', err);
       let friendlyError = err.message || 'Unknown evaluation execution error.';
+      if (err.name === 'AbortError') {
+        friendlyError = 'Evaluation timed out. The operation took longer than 125 seconds.';
+      }
       if (friendlyError.includes('Failed to connect') || friendlyError.includes('Connection Error')) {
         friendlyError += ' | Suggestion: Check that your HTTP agent process is running locally on the correct port and host address.';
       } else if (friendlyError.includes('No valid agent adapter class')) {
